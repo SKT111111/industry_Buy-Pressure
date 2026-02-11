@@ -5,7 +5,7 @@ from io import BytesIO
  
 st.title("Industry Buy Pressure Dashboard")
  
-excel_url = "https://raw.githubusercontent.com/SKT111111/industry_buy_pressure/main/data/industry_etf_multicondition_20260211_001951.xlsx"
+excel_url = "https://raw.githubusercontent.com/SKT111111/industry_Buy-Pressure/main/data/industry_etf_multicondition_20260211_001951.xlsx"
  
 try:
     r = requests.get(excel_url)
