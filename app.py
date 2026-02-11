@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from io import BytesIO
 import numpy as np
+import html
 
 # ページ設定
 st.set_page_config(
@@ -238,10 +239,11 @@ def create_industry_table(df_screening_display, df_industry_display, sort_by='Te
 with tab0:
     st.header("Buy Pressure")
     
-    # チェック用テーブル作成
+    # チェック用データ作成
     df_check = df_summary[['業種', 'RS Rating', 'Buy Pressure', 'ステータス']].copy()
     
     # テクニカルスコア別の銘柄シンボルを追加（Buy Pressure降順）
+    ts_data = {}
     for score in [14, 13, 12, 11, 10]:
         col_name = f'TS {score}'
         symbols_list = []
@@ -253,12 +255,129 @@ with tab0:
             symbols = ', '.join(stocks['Symbol'].tolist())
             symbols_list.append(symbols)
         df_check[col_name] = symbols_list
+        ts_data[col_name] = symbols_list
     
-    st.dataframe(
-        df_check,
-        use_container_width=True,
-        height=600
-    )
+    # クリックでコピーできるHTMLテーブルを生成
+    table_html = """
+    <style>
+    #check-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+    #check-table th {
+        background-color: #262730;
+        color: #fafafa;
+        padding: 8px 10px;
+        text-align: left;
+        border: 1px solid #444;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+    #check-table td {
+        padding: 6px 10px;
+        border: 1px solid #444;
+        background-color: #0e1117;
+        color: #fafafa;
+    }
+    #check-table tr:hover td {
+        background-color: #1a1d24;
+    }
+    .copyable {
+        cursor: pointer;
+        position: relative;
+    }
+    .copyable:hover {
+        background-color: #2a2d34 !important;
+    }
+    .copy-toast {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background-color: #00c853;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: bold;
+        z-index: 9999;
+        opacity: 0;
+        transition: opacity 0.3s;
+        pointer-events: none;
+    }
+    .copy-toast.show {
+        opacity: 1;
+    }
+    </style>
+    <div id="copy-toast" class="copy-toast">📋 Copied!</div>
+    <div style="overflow-x: auto; max-height: 600px; overflow-y: auto;">
+    <table id="check-table">
+    <thead>
+    <tr>
+        <th>業種</th>
+        <th>RS Rating</th>
+        <th>Buy Pressure</th>
+        <th>ステータス</th>
+        <th>TS 14</th>
+        <th>TS 13</th>
+        <th>TS 12</th>
+        <th>TS 11</th>
+        <th>TS 10</th>
+    </tr>
+    </thead>
+    <tbody>
+    """
+    
+    for idx, row in df_check.iterrows():
+        bp = row['Buy Pressure']
+        bp_color = get_color_from_buy_pressure(bp)
+        industry = html.escape(str(row['業種']))
+        rs = f"{row['RS Rating']:.1f}"
+        bp_val = f"{bp:.3f}"
+        status = html.escape(str(row['ステータス']))
+        
+        table_html += f"""<tr>
+            <td>{industry}</td>
+            <td>{rs}</td>
+            <td style="color: {bp_color}; font-weight: bold;">{bp_val}</td>
+            <td>{status}</td>"""
+        
+        for score in [14, 13, 12, 11, 10]:
+            col_name = f'TS {score}'
+            symbols = html.escape(str(row[col_name]))
+            # コピー用データは改行区切り
+            copy_data = symbols.replace(', ', '\\n') if symbols else ''
+            if symbols:
+                table_html += f'<td class="copyable" onclick="copySymbols(this, \'{copy_data}\')" title="クリックでコピー">{symbols}</td>'
+            else:
+                table_html += '<td></td>'
+        
+        table_html += "</tr>"
+    
+    table_html += """
+    </tbody>
+    </table>
+    </div>
+    <script>
+    function copySymbols(el, text) {
+        const decoded = text.replace(/\\\\n/g, '\\n');
+        navigator.clipboard.writeText(decoded).then(function() {
+            var toast = document.getElementById('copy-toast');
+            toast.classList.add('show');
+            el.style.backgroundColor = '#1b5e20';
+            setTimeout(function() {
+                toast.classList.remove('show');
+                el.style.backgroundColor = '';
+            }, 1500);
+        });
+    }
+    </script>
+    """
+    
+    # 行数に応じた高さ
+    table_height = min(len(df_check) * 38 + 60, 650)
+    st.components.v1.html(table_html, height=table_height, scrolling=True)
 
 # タブ1: テクニカルスコア別
 with tab1:
