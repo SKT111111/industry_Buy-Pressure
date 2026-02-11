@@ -36,7 +36,7 @@ def load_data():
     """エクセルファイルからデータを読み込む"""
     
     # File 1: Industry ETF Multi-Condition
-    file1_path = '/SKT111111/industry_Buy-Pressure/main/data/industry_etf_multicondition_20260211_001951.xlsx'
+    file1_path = 'data/industry_etf_multicondition_20260211_001951.xlsx'
     df_industry_raw = pd.read_excel(file1_path, sheet_name='Multi_Condition_Passed')
     
     # ヘッダー行を特定（'Industry'が含まれる行）
@@ -52,7 +52,7 @@ def load_data():
     df_industry = df_industry.dropna()
     
     # File 2: Integrated Screening
-    file2_path =  '/SKT111111/industry_Buy-Pressure/main/data/integrated_screening_20260211_114423.xlsx'
+    file2_path = 'data/integrated_screening_20260211_114423.xlsx'
     df_screening = pd.read_excel(file2_path, sheet_name='Screening_Results')
     
     # Technical Score が10以上のみフィルタ
@@ -318,3 +318,4 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
