@@ -235,25 +235,36 @@ def create_industry_table(df_screening_display, df_industry_display, sort_by='Te
         st.markdown("---")
 
 
+def get_colored_symbols_html(industry, score, df_screening_display):
+    """業種とスコアに該当する銘柄を、個別のBuy Pressureに応じた色付きHTMLで返す"""
+    stocks = df_screening_display[
+        (df_screening_display['Industry'] == industry) &
+        (df_screening_display['Technical_Score'] == score)
+    ].sort_values('Buy_Pressure', ascending=False)
+    
+    if len(stocks) == 0:
+        return '', ''
+    
+    colored_spans = []
+    plain_symbols = []
+    for _, stock in stocks.iterrows():
+        symbol = html.escape(str(stock['Symbol']))
+        bp = stock['Buy_Pressure']
+        color = get_color_from_buy_pressure(bp)
+        colored_spans.append(f'<span style="color:{color}; font-weight:bold;">{symbol}</span>')
+        plain_symbols.append(symbol)
+    
+    display_html = ', '.join(colored_spans)
+    copy_text = ', '.join(plain_symbols)
+    return display_html, copy_text
+
+
 # タブ0: チェック
 with tab0:
     st.header("Buy Pressure")
     
     # チェック用データ作成
     df_check = df_summary[['業種', 'RS Rating', 'Buy Pressure', 'ステータス']].copy()
-    
-    # テクニカルスコア別の銘柄シンボルを追加（Buy Pressure降順）
-    for score in [14, 13, 12, 11, 10]:
-        col_name = f'TS {score}'
-        symbols_list = []
-        for industry in df_check['業種']:
-            stocks = df_screening_display[
-                (df_screening_display['Industry'] == industry) &
-                (df_screening_display['Technical_Score'] == score)
-            ].sort_values('Buy_Pressure', ascending=False)
-            symbols = ', '.join(stocks['Symbol'].tolist())
-            symbols_list.append(symbols)
-        df_check[col_name] = symbols_list
     
     # クリックでコピーできるHTMLテーブルを生成
     table_html = """
@@ -342,10 +353,12 @@ with tab0:
             <td>{status}</td>"""
         
         for score in [14, 13, 12, 11, 10]:
-            col_name = f'TS {score}'
-            symbols = html.escape(str(row[col_name]))
-            if symbols:
-                table_html += f'<td class="copyable" onclick="copySymbols(this)" title="クリックでコピー">{symbols}</td>'
+            display_html, copy_text = get_colored_symbols_html(
+                row['業種'], score, df_screening_display
+            )
+            if display_html:
+                escaped_copy = html.escape(copy_text).replace("'", "\\'")
+                table_html += f"<td class=\"copyable\" onclick=\"copySymbols(this, '{escaped_copy}')\" title=\"クリックでコピー\">{display_html}</td>"
             else:
                 table_html += '<td></td>'
         
@@ -356,8 +369,7 @@ with tab0:
     </table>
     </div>
     <script>
-    function copySymbols(el) {
-        var text = el.innerText;
+    function copySymbols(el, text) {
         navigator.clipboard.writeText(text).then(function() {
             var toast = document.getElementById('copy-toast');
             toast.classList.add('show');
