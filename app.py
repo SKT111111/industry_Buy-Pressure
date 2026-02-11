@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from io import BytesIO
+import numpy as np
 
 # ページ設定
 st.set_page_config(
@@ -14,21 +15,45 @@ st.set_page_config(
 st.title("🔥 Industry Buy Pressure Dashboard")
 st.markdown("---")
 
+# Buy Pressure に応じた色を返す関数（緑→黄→赤のグラデーション）
+def get_color_from_buy_pressure(buy_pressure):
+    """Buy Pressureに基づいて色を返す（0=赤、0.5=黄、1=緑）"""
+    if pd.isna(buy_pressure):
+        return "#808080"  # グレー
+    
+    # 0.0〜1.0の範囲に正規化
+    normalized = max(0.0, min(1.0, buy_pressure))
+    
+    if normalized >= 0.5:
+        # 0.5〜1.0: 黄色(255,255,0) → 緑(0,255,0)
+        ratio = (normalized - 0.5) * 2
+        r = int(255 * (1 - ratio))
+        g = 255
+        b = 0
+    else:
+        # 0.0〜0.5: 赤(255,0,0) → 黄色(255,255,0)
+        ratio = normalized * 2
+        r = 255
+        g = int(255 * ratio)
+        b = 0
+    
+    return f"#{r:02x}{g:02x}{b:02x}"
+
 # Buy Pressure のステータス判定関数
 def get_buy_pressure_status(buy_pressure):
-    """Buy Pressureに基づいてステータスと色を返す"""
+    """Buy Pressureに基づいてステータスを返す"""
     if buy_pressure > 0.667:
-        return "🔥 EXTREME", "#FF0000"  # 赤
+        return "🔥 EXTREME"
     elif buy_pressure > 0.60:
-        return "🚀 STRONG", "#FF6B00"   # オレンジ赤
+        return "🚀 STRONG"
     elif buy_pressure > 0.55:
-        return "📈 BUY", "#FFA500"      # オレンジ
+        return "📈 BUY"
     elif buy_pressure < 0.333:
-        return "💀 WEAK", "#808080"     # グレー
+        return "💀 WEAK"
     elif buy_pressure < 0.45:
-        return "⚠️ CAUTION", "#FFD700"  # 黄色
+        return "⚠️ CAUTION"
     else:
-        return "➖ NEUTRAL", "#87CEEB"  # 薄い青
+        return "➖ NEUTRAL"
 
 # データ読み込み関数
 @st.cache_data
@@ -87,6 +112,15 @@ with st.sidebar:
         step=1
     )
     
+    # 表示する銘柄数
+    max_stocks_per_industry = st.slider(
+        "業種ごとの最大表示銘柄数",
+        min_value=5,
+        max_value=30,
+        value=15,
+        step=5
+    )
+    
     # Industry フィルター
     selected_industries = st.multiselect(
         "業種選択（空白=全て）",
@@ -96,12 +130,9 @@ with st.sidebar:
     
     st.markdown("---")
     st.markdown("### 🎨 カラーコード")
-    st.markdown("- 🔥 **EXTREME** (>0.667)")
-    st.markdown("- 🚀 **STRONG** (>0.60)")
-    st.markdown("- 📈 **BUY** (>0.55)")
-    st.markdown("- ➖ **NEUTRAL** (0.45-0.55)")
-    st.markdown("- ⚠️ **CAUTION** (<0.45)")
-    st.markdown("- 💀 **WEAK** (<0.333)")
+    st.markdown("- 🟢 **緑**: Buy Pressure 高い")
+    st.markdown("- 🟡 **黄**: Buy Pressure 中程度")
+    st.markdown("- 🔴 **赤**: Buy Pressure 低い")
 
 # フィルタ適用
 df_screening_display = df_screening[df_screening['Technical_Score'] >= min_tech_score].copy()
@@ -121,132 +152,109 @@ tab1, tab2, tab3 = st.tabs([
     "📊 業種サマリー"
 ])
 
-# タブ1: テクニカルスコア
+# 表形式で表示する関数
+def create_industry_table(df_screening_display, df_industry_display, sort_by='Technical_Score'):
+    """業種×銘柄の表を作成"""
+    
+    # 業種ごとにソート（RS_Rating降順）
+    df_industry_sorted = df_industry_display.sort_values('RS_Rating', ascending=False)
+    
+    for _, industry_row in df_industry_sorted.iterrows():
+        industry_name = industry_row['Industry']
+        rs_rating = industry_row['RS_Rating']
+        buy_pressure = industry_row['Buy_Pressure']
+        
+        # この業種の銘柄を取得
+        stocks_in_industry = df_screening_display[
+            df_screening_display['Industry'] == industry_name
+        ].sort_values(sort_by, ascending=False).head(max_stocks_per_industry)
+        
+        if len(stocks_in_industry) == 0:
+            continue
+        
+        # 業種ヘッダー表示
+        st.markdown(f"### {industry_name}")
+        col1, col2, col3, col4 = st.columns([3, 1, 1, 2])
+        with col1:
+            st.metric("業種", industry_name)
+        with col2:
+            st.metric("RS Rating", f"{rs_rating:.1f}")
+        with col3:
+            st.metric("Buy Pressure", f"{buy_pressure:.3f}")
+        with col4:
+            status = get_buy_pressure_status(buy_pressure)
+            st.markdown(f"**{status}**")
+        
+        # 表のHTMLを作成
+        table_html = """
+        <style>
+        .stock-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+        .stock-table th {
+            background-color: #f0f2f6;
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #ddd;
+            font-weight: bold;
+        }
+        .stock-table td {
+            padding: 8px;
+            border: 1px solid #ddd;
+        }
+        .stock-table tr:hover {
+            background-color: #f5f5f5;
+        }
+        </style>
+        <table class="stock-table">
+        <tr>
+            <th>No</th>
+            <th>Symbol</th>
+            <th>Company Name</th>
+            <th>Technical Score</th>
+            <th>Screening Score</th>
+            <th>Buy Pressure</th>
+        </tr>
+        """
+        
+        for idx, (_, stock) in enumerate(stocks_in_industry.iterrows(), 1):
+            symbol = stock['Symbol']
+            company_name = stock['Company Name'][:40] if pd.notna(stock['Company Name']) else ''
+            tech_score = stock['Technical_Score']
+            screening_score = stock['Screening_Score']
+            stock_bp = stock['Buy_Pressure']
+            
+            # Buy Pressureに応じた色を取得
+            color = get_color_from_buy_pressure(stock_bp)
+            
+            table_html += f"""
+            <tr>
+                <td>{idx}</td>
+                <td style="color: {color}; font-weight: bold; font-size: 16px;">{symbol}</td>
+                <td>{company_name}</td>
+                <td>{tech_score}</td>
+                <td>{screening_score:.1f}</td>
+                <td style="color: {color}; font-weight: bold;">{stock_bp:.4f}</td>
+            </tr>
+            """
+        
+        table_html += "</table>"
+        
+        st.markdown(table_html, unsafe_allow_html=True)
+        st.markdown("---")
+
+# タブ1: テクニカルスコア別
 with tab1:
     st.header("テクニカルスコア別 業種×銘柄マトリックス")
-    
-    # 業種ごとにソート（RS_Rating降順）
-    df_industry_sorted = df_industry_display.sort_values('RS_Rating', ascending=False)
-    
-    # 各業種の銘柄を取得
-    for _, industry_row in df_industry_sorted.iterrows():
-        industry_name = industry_row['Industry']
-        rs_rating = industry_row['RS_Rating']
-        buy_pressure = industry_row['Buy_Pressure']
-        
-        # この業種の銘柄を取得
-        stocks_in_industry = df_screening_display[
-            df_screening_display['Industry'] == industry_name
-        ].sort_values('Technical_Score', ascending=False)
-        
-        if len(stocks_in_industry) > 0:
-            # 業種ヘッダー
-            status, color = get_buy_pressure_status(buy_pressure)
-            st.markdown(f"### {industry_name}")
-            col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
-            with col1:
-                st.metric("業種", industry_name)
-            with col2:
-                st.metric("RS Rating", f"{rs_rating:.1f}")
-            with col3:
-                st.metric("Buy Pressure", f"{buy_pressure:.4f}")
-            with col4:
-                st.markdown(f"**{status}**")
-            
-            # 銘柄を横に並べる
-            cols = st.columns(min(len(stocks_in_industry), 5))
-            for idx, (_, stock) in enumerate(stocks_in_industry.iterrows()):
-                if idx >= 20:  # 最大20銘柄まで表示
-                    break
-                    
-                col_idx = idx % 5
-                stock_status, stock_color = get_buy_pressure_status(stock['Buy_Pressure'])
-                
-                with cols[col_idx]:
-                    st.markdown(
-                        f"""
-                        <div style="
-                            border: 2px solid {stock_color};
-                            border-radius: 8px;
-                            padding: 10px;
-                            margin: 5px 0;
-                            background-color: {stock_color}20;
-                        ">
-                            <h4 style="margin: 0; color: {stock_color};">{stock['Symbol']}</h4>
-                            <p style="margin: 5px 0; font-size: 12px;">{stock['Company Name'][:30]}</p>
-                            <p style="margin: 5px 0;"><strong>Tech Score:</strong> {stock['Technical_Score']}</p>
-                            <p style="margin: 5px 0;"><strong>Buy Pressure:</strong> {stock['Buy_Pressure']:.4f}</p>
-                            <p style="margin: 0;">{stock_status}</p>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-            
-            st.markdown("---")
+    create_industry_table(df_screening_display, df_industry_display, sort_by='Technical_Score')
 
-# タブ2: スクリーニングスコア
+# タブ2: スクリーニングスコア別
 with tab2:
     st.header("スクリーニングスコア (テクニカル+ファンダメンタル) 別 業種×銘柄マトリックス")
-    
-    # 業種ごとにソート（RS_Rating降順）
-    df_industry_sorted = df_industry_display.sort_values('RS_Rating', ascending=False)
-    
-    # 各業種の銘柄を取得
-    for _, industry_row in df_industry_sorted.iterrows():
-        industry_name = industry_row['Industry']
-        rs_rating = industry_row['RS_Rating']
-        buy_pressure = industry_row['Buy_Pressure']
-        
-        # この業種の銘柄を取得
-        stocks_in_industry = df_screening_display[
-            df_screening_display['Industry'] == industry_name
-        ].sort_values('Screening_Score', ascending=False)
-        
-        if len(stocks_in_industry) > 0:
-            # 業種ヘッダー
-            status, color = get_buy_pressure_status(buy_pressure)
-            st.markdown(f"### {industry_name}")
-            col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
-            with col1:
-                st.metric("業種", industry_name)
-            with col2:
-                st.metric("RS Rating", f"{rs_rating:.1f}")
-            with col3:
-                st.metric("Buy Pressure", f"{buy_pressure:.4f}")
-            with col4:
-                st.markdown(f"**{status}**")
-            
-            # 銘柄を横に並べる
-            cols = st.columns(min(len(stocks_in_industry), 5))
-            for idx, (_, stock) in enumerate(stocks_in_industry.iterrows()):
-                if idx >= 20:  # 最大20銘柄まで表示
-                    break
-                    
-                col_idx = idx % 5
-                stock_status, stock_color = get_buy_pressure_status(stock['Buy_Pressure'])
-                
-                with cols[col_idx]:
-                    st.markdown(
-                        f"""
-                        <div style="
-                            border: 2px solid {stock_color};
-                            border-radius: 8px;
-                            padding: 10px;
-                            margin: 5px 0;
-                            background-color: {stock_color}20;
-                        ">
-                            <h4 style="margin: 0; color: {stock_color};">{stock['Symbol']}</h4>
-                            <p style="margin: 5px 0; font-size: 12px;">{stock['Company Name'][:30]}</p>
-                            <p style="margin: 5px 0;"><strong>Screening Score:</strong> {stock['Screening_Score']}</p>
-                            <p style="margin: 5px 0;"><strong>Tech Score:</strong> {stock['Technical_Score']}</p>
-                            <p style="margin: 5px 0;"><strong>Buy Pressure:</strong> {stock['Buy_Pressure']:.4f}</p>
-                            <p style="margin: 0;">{stock_status}</p>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-            
-            st.markdown("---")
+    create_industry_table(df_screening_display, df_industry_display, sort_by='Screening_Score')
 
 # タブ3: 業種サマリー
 with tab3:
@@ -258,7 +266,7 @@ with tab3:
         stocks = df_screening_display[df_screening_display['Industry'] == industry]
         industry_data = df_industry_display[df_industry_display['Industry'] == industry].iloc[0]
         
-        status, color = get_buy_pressure_status(industry_data['Buy_Pressure'])
+        status = get_buy_pressure_status(industry_data['Buy_Pressure'])
         
         industry_summary.append({
             '業種': industry,
@@ -318,4 +326,3 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
