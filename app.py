@@ -263,8 +263,6 @@ with tab3:
     fig.update_layout(
         height=700,
         yaxis=dict(
-            scaleanchor='x',
-            scaleratio=1,
             range=[0, 1],
         )
     )
