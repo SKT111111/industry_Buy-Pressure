@@ -263,7 +263,7 @@ with tab3:
     fig.update_layout(
         height=700,
         yaxis=dict(
-            range=[0, 1],
+            range=[0.5, 1],
         )
     )
     st.plotly_chart(fig, use_container_width=True)
