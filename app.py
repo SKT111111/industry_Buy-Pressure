@@ -266,6 +266,18 @@ with tab0:
     # チェック用データ作成
     df_check = df_summary[['業種', 'RS Rating', 'Buy Pressure', 'ステータス']].copy()
     
+    # 各行のTS列の銘柄数を事前に計算（高さ推定用）
+    max_symbols_per_row = []
+    for _, row in df_check.iterrows():
+        row_max = 0
+        for score in [14, 13, 12, 11, 10]:
+            count = len(df_screening_display[
+                (df_screening_display['Industry'] == row['業種']) &
+                (df_screening_display['Technical_Score'] == score)
+            ])
+            row_max = max(row_max, count)
+        max_symbols_per_row.append(row_max)
+    
     # クリックでコピーできるHTMLテーブルを生成
     table_html = """
     <style>
@@ -380,8 +392,19 @@ with tab0:
     </script>
     """
     
-    table_height = len(df_check) * 38 + 80
-    st.components.v1.html(table_html, height=table_height, scrolling=False)
+    # 各行の高さを銘柄数に応じて動的に計算
+    total_height = 80  # ヘッダー分
+    for sym_count in max_symbols_per_row:
+        if sym_count <= 3:
+            total_height += 40
+        elif sym_count <= 6:
+            total_height += 55
+        elif sym_count <= 10:
+            total_height += 75
+        else:
+            total_height += 95
+    
+    st.components.v1.html(table_html, height=total_height, scrolling=False)
 
 # タブ1: テクニカルスコア別
 with tab1:
