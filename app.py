@@ -4,7 +4,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 from io import BytesIO
 import numpy as np
-import html
 
 # ページ設定
 st.set_page_config(
@@ -235,78 +234,14 @@ def create_industry_table(df_screening_display, df_industry_display, sort_by='Te
         st.markdown("---")
 
 
-def make_clickable_symbols(symbols_str):
-    """シンボル文字列をクリックでコピー可能なHTMLスパンに変換"""
-    if not symbols_str:
-        return ''
-    symbols = [s.strip() for s in symbols_str.split(',') if s.strip()]
-    spans = []
-    for sym in symbols:
-        escaped = html.escape(sym)
-        spans.append(
-            f'<span class="copy-sym" onclick="navigator.clipboard.writeText(\'{escaped}\').'
-            f'then(function(){{var el=event.target;el.style.background=\'#4CAF50\';el.style.color=\'white\';'
-            f'setTimeout(function(){{el.style.background=\'#e8e8e8\';el.style.color=\'#333\';}},500);}})">'
-            f'{escaped}</span>'
-        )
-    return ' '.join(spans)
-
-
 # タブ0: チェック
 with tab0:
     st.header("Buy Pressure")
     
-    # クリックでコピーするためのCSS
-    st.markdown("""
-    <style>
-    .copy-sym {
-        display: inline-block;
-        padding: 2px 8px;
-        margin: 2px;
-        background: #e8e8e8;
-        border-radius: 4px;
-        cursor: pointer;
-        font-weight: bold;
-        font-size: 13px;
-        color: #333;
-        transition: background 0.2s;
-        user-select: none;
-    }
-    .copy-sym:hover {
-        background: #2196F3;
-        color: white;
-    }
-    .check-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 13px;
-    }
-    .check-table th {
-        background-color: #f0f2f6;
-        padding: 8px 6px;
-        text-align: left;
-        border: 1px solid #ddd;
-        font-weight: bold;
-        position: sticky;
-        top: 0;
-        z-index: 1;
-    }
-    .check-table td {
-        padding: 6px;
-        border: 1px solid #ddd;
-        vertical-align: top;
-    }
-    .check-table tr:hover {
-        background-color: #f5f5f5;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # チェック用データ作成
+    # チェック用テーブル作成
     df_check = df_summary[['業種', 'RS Rating', 'Buy Pressure', 'ステータス']].copy()
     
     # テクニカルスコア別の銘柄シンボルを追加（Buy Pressure降順）
-    score_columns = {}
     for score in [14, 13, 12, 11, 10]:
         col_name = f'TS {score}'
         symbols_list = []
@@ -317,33 +252,13 @@ with tab0:
             ].sort_values('Buy_Pressure', ascending=False)
             symbols = ', '.join(stocks['Symbol'].tolist())
             symbols_list.append(symbols)
-        score_columns[col_name] = symbols_list
+        df_check[col_name] = symbols_list
     
-    # HTMLテーブル作成
-    table_html = '<div style="overflow-x:auto;"><table class="check-table"><tr>'
-    table_html += '<th>No</th><th>業種</th><th>RS Rating</th><th>Buy Pressure</th><th>ステータス</th>'
-    for score in [14, 13, 12, 11, 10]:
-        table_html += f'<th>TS {score}</th>'
-    table_html += '</tr>'
-    
-    for idx, (_, row) in enumerate(df_check.iterrows()):
-        bp_color = get_color_from_buy_pressure(row['Buy Pressure'])
-        table_html += '<tr>'
-        table_html += f'<td>{idx}</td>'
-        table_html += f'<td>{html.escape(str(row["業種"]))}</td>'
-        table_html += f'<td>{row["RS Rating"]:.1f}</td>'
-        table_html += f'<td style="color:{bp_color};font-weight:bold;">{row["Buy Pressure"]:.4f}</td>'
-        table_html += f'<td>{html.escape(str(row["ステータス"]))}</td>'
-        for score in [14, 13, 12, 11, 10]:
-            col_name = f'TS {score}'
-            syms = score_columns[col_name][idx]
-            table_html += f'<td>{make_clickable_symbols(syms)}</td>'
-        table_html += '</tr>'
-    
-    table_html += '</table></div>'
-    
-    st.markdown(table_html, unsafe_allow_html=True)
-    st.caption("💡 ティッカーをクリックするとクリップボードにコピーされます")
+    st.dataframe(
+        df_check,
+        use_container_width=True,
+        height=600
+    )
 
 # タブ1: テクニカルスコア別
 with tab1:
@@ -408,4 +323,3 @@ st.markdown(
     </div>
     """,
     unsafe_allow_html=True
-)
