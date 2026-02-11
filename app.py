@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from io import BytesIO
 import numpy as np
+import html
 
 # ページ設定
 st.set_page_config(
@@ -173,7 +174,7 @@ def create_industry_table(df_screening_display, df_industry_display, sort_by='Te
             continue
         
         # 業種ヘッダー表示
-        st.markdown(f"### {industry_name}")
+        st.markdown(f"### {html.escape(str(industry_name))}")
         col1, col2, col3, col4 = st.columns([3, 1, 1, 2])
         with col1:
             st.metric("業種", industry_name)
@@ -221,8 +222,8 @@ def create_industry_table(df_screening_display, df_industry_display, sort_by='Te
         """
         
         for idx, (_, stock) in enumerate(stocks_in_industry.iterrows(), 1):
-            symbol = stock['Symbol']
-            company_name = stock['Company Name'][:40] if pd.notna(stock['Company Name']) else ''
+            symbol = html.escape(str(stock['Symbol']))
+            company_name = html.escape(str(stock['Company Name'])[:40]) if pd.notna(stock['Company Name']) else ''
             tech_score = stock['Technical_Score']
             screening_score = stock['Screening_Score']
             stock_bp = stock['Buy_Pressure']
