@@ -243,7 +243,6 @@ with tab0:
     df_check = df_summary[['業種', 'RS Rating', 'Buy Pressure', 'ステータス']].copy()
     
     # テクニカルスコア別の銘柄シンボルを追加（Buy Pressure降順）
-    ts_data = {}
     for score in [14, 13, 12, 11, 10]:
         col_name = f'TS {score}'
         symbols_list = []
@@ -255,7 +254,6 @@ with tab0:
             symbols = ', '.join(stocks['Symbol'].tolist())
             symbols_list.append(symbols)
         df_check[col_name] = symbols_list
-        ts_data[col_name] = symbols_list
     
     # クリックでコピーできるHTMLテーブルを生成
     table_html = """
@@ -346,10 +344,8 @@ with tab0:
         for score in [14, 13, 12, 11, 10]:
             col_name = f'TS {score}'
             symbols = html.escape(str(row[col_name]))
-            # コピー用データは改行区切り
-            copy_data = symbols.replace(', ', '\\n') if symbols else ''
             if symbols:
-                table_html += f'<td class="copyable" onclick="copySymbols(this, \'{copy_data}\')" title="クリックでコピー">{symbols}</td>'
+                table_html += f'<td class="copyable" onclick="copySymbols(this)" title="クリックでコピー">{symbols}</td>'
             else:
                 table_html += '<td></td>'
         
@@ -360,9 +356,9 @@ with tab0:
     </table>
     </div>
     <script>
-    function copySymbols(el, text) {
-        const decoded = text.replace(/\\\\n/g, '\\n');
-        navigator.clipboard.writeText(decoded).then(function() {
+    function copySymbols(el) {
+        var text = el.innerText;
+        navigator.clipboard.writeText(text).then(function() {
             var toast = document.getElementById('copy-toast');
             toast.classList.add('show');
             el.style.backgroundColor = '#1b5e20';
@@ -375,7 +371,6 @@ with tab0:
     </script>
     """
     
-    # 行数に応じた高さ
     table_height = min(len(df_check) * 38 + 60, 650)
     st.components.v1.html(table_html, height=table_height, scrolling=True)
 
