@@ -141,26 +141,14 @@ tab1, tab2, tab3 = st.tabs([
 ])
 
 
-def style_buy_pressure(val):
-    """Buy Pressure列のセルに背景色を付けるスタイル関数"""
-    try:
-        bp = float(val)
-        color = get_color_from_buy_pressure(bp)
-        return f'background-color: {color}; color: #000000; font-weight: bold;'
-    except (ValueError, TypeError):
-        return ''
-
-
 def style_symbol(row):
     """行全体に対して、Symbol列とBuy Pressure列に色を付けるスタイル関数"""
     styles = [''] * len(row)
     try:
         bp = float(row['Buy Pressure'])
         color = get_color_from_buy_pressure(bp)
-        # Symbol列
         symbol_idx = row.index.get_loc('Symbol')
         styles[symbol_idx] = f'color: {color}; font-weight: bold; font-size: 16px;'
-        # Buy Pressure列
         bp_idx = row.index.get_loc('Buy Pressure')
         styles[bp_idx] = f'color: {color}; font-weight: bold;'
     except (ValueError, TypeError, KeyError):
@@ -205,15 +193,12 @@ def create_industry_table(df_screening_display, df_industry_display, sort_by='Te
         display_df.index.name = 'No'
         display_df.columns = ['Symbol', 'Company Name', 'Technical Score', 'Screening Score', 'Buy Pressure']
         
-        # Company Name を40文字に切り詰め
         display_df['Company Name'] = display_df['Company Name'].apply(
             lambda x: str(x)[:40] if pd.notna(x) else ''
         )
         
-        # Styler適用
         styled_df = display_df.style.apply(style_symbol, axis=1)
         
-        # 表示
         st.dataframe(
             styled_df,
             use_container_width=True,
@@ -262,6 +247,7 @@ with tab3:
         height=600
     )
     
+    # グラフ：RS Rating vs Buy Pressure
     st.subheader("RS Rating vs Buy Pressure")
     fig = px.scatter(
         df_summary,
@@ -274,8 +260,16 @@ with tab3:
         title='業種別 RS Rating vs Buy Pressure'
     )
     fig.update_traces(textposition='top center')
+    fig.update_layout(
+        height=700,
+        yaxis=dict(
+            scaleanchor='x',
+            scaleratio=1,
+        )
+    )
     st.plotly_chart(fig, use_container_width=True)
     
+    # グラフ：業種別銘柄数
     st.subheader("業種別銘柄数")
     fig2 = px.bar(
         df_summary.sort_values('銘柄数', ascending=True),
