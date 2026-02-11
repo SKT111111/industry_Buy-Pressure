@@ -241,7 +241,7 @@ with tab0:
     # チェック用テーブル作成
     df_check = df_summary[['業種', 'RS Rating', 'Buy Pressure', 'ステータス']].copy()
     
-    # テクニカルスコア別の銘柄シンボルを追加
+    # テクニカルスコア別の銘柄シンボルを追加（Buy Pressure降順）
     for score in [14, 13, 12, 11, 10]:
         col_name = f'TS {score}'
         symbols_list = []
@@ -249,7 +249,7 @@ with tab0:
             stocks = df_screening_display[
                 (df_screening_display['Industry'] == industry) &
                 (df_screening_display['Technical_Score'] == score)
-            ]
+            ].sort_values('Buy_Pressure', ascending=False)
             symbols = ', '.join(stocks['Symbol'].tolist())
             symbols_list.append(symbols)
         df_check[col_name] = symbols_list
@@ -266,7 +266,9 @@ with tab0:
     
     all_symbols = []
     for score in [14, 13, 12, 11, 10]:
-        stocks = df_screening_display[df_screening_display['Technical_Score'] == score]
+        stocks = df_screening_display[
+            df_screening_display['Technical_Score'] == score
+        ].sort_values('Buy_Pressure', ascending=False)
         symbols = stocks['Symbol'].tolist()
         all_symbols.extend(symbols)
     
@@ -281,7 +283,9 @@ with tab0:
     
     # テクニカルスコア別にも用意
     for score in [14, 13, 12, 11, 10]:
-        stocks = df_screening_display[df_screening_display['Technical_Score'] == score]
+        stocks = df_screening_display[
+            df_screening_display['Technical_Score'] == score
+        ].sort_values('Buy_Pressure', ascending=False)
         symbols = stocks['Symbol'].tolist()
         if symbols:
             st.text_area(
