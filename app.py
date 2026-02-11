@@ -238,13 +238,57 @@ def create_industry_table(df_screening_display, df_industry_display, sort_by='Te
 with tab0:
     st.header("Buy Pressure")
     
+    # チェック用テーブル作成
     df_check = df_summary[['業種', 'RS Rating', 'Buy Pressure', 'ステータス']].copy()
+    
+    # テクニカルスコア別の銘柄シンボルを追加
+    for score in [14, 13, 12, 11, 10]:
+        col_name = f'TS {score}'
+        symbols_list = []
+        for industry in df_check['業種']:
+            stocks = df_screening_display[
+                (df_screening_display['Industry'] == industry) &
+                (df_screening_display['Technical_Score'] == score)
+            ]
+            symbols = ', '.join(stocks['Symbol'].tolist())
+            symbols_list.append(symbols)
+        df_check[col_name] = symbols_list
     
     st.dataframe(
         df_check,
         use_container_width=True,
         height=600
     )
+    
+    # TradingView用コピーエリア
+    st.markdown("---")
+    st.subheader("📋 TradingView用シンボルリスト")
+    
+    all_symbols = []
+    for score in [14, 13, 12, 11, 10]:
+        stocks = df_screening_display[df_screening_display['Technical_Score'] == score]
+        symbols = stocks['Symbol'].tolist()
+        all_symbols.extend(symbols)
+    
+    # 重複除去して改行区切り
+    unique_symbols = list(dict.fromkeys(all_symbols))
+    
+    st.text_area(
+        "全銘柄（改行区切り・コピーしてTradingViewに貼り付け）",
+        value='\n'.join(unique_symbols),
+        height=300
+    )
+    
+    # テクニカルスコア別にも用意
+    for score in [14, 13, 12, 11, 10]:
+        stocks = df_screening_display[df_screening_display['Technical_Score'] == score]
+        symbols = stocks['Symbol'].tolist()
+        if symbols:
+            st.text_area(
+                f"テクニカルスコア {score}（{len(symbols)}銘柄）",
+                value='\n'.join(symbols),
+                height=150
+            )
 
 # タブ1: テクニカルスコア別
 with tab1:
