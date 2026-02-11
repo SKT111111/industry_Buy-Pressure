@@ -4,7 +4,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 from io import BytesIO
 import numpy as np
-import html
 
 # ページ設定
 st.set_page_config(
@@ -22,17 +21,14 @@ def get_color_from_buy_pressure(buy_pressure):
     if pd.isna(buy_pressure):
         return "#808080"  # グレー
     
-    # 0.0〜1.0の範囲に正規化
     normalized = max(0.0, min(1.0, buy_pressure))
     
     if normalized >= 0.5:
-        # 0.5〜1.0: 黄色(255,255,0) → 緑(0,255,0)
         ratio = (normalized - 0.5) * 2
         r = int(255 * (1 - ratio))
         g = 255
         b = 0
     else:
-        # 0.0〜0.5: 赤(255,0,0) → 黄色(255,255,0)
         ratio = normalized * 2
         r = 255
         g = int(255 * ratio)
@@ -61,30 +57,24 @@ def get_buy_pressure_status(buy_pressure):
 def load_data():
     """エクセルファイルからデータを読み込む"""
     
-    # File 1: Industry ETF Multi-Condition
     file1_path = 'data/industry_etf_multicondition_20260211_001951.xlsx'
     df_industry_raw = pd.read_excel(file1_path, sheet_name='Multi_Condition_Passed')
     
-    # ヘッダー行を特定（'Industry'が含まれる行）
     header_row = df_industry_raw[df_industry_raw.iloc[:, 0] == 'Industry'].index[0]
     df_industry = pd.read_excel(file1_path, sheet_name='Multi_Condition_Passed', skiprows=header_row)
     df_industry.columns = df_industry.iloc[0]
     df_industry = df_industry[1:].reset_index(drop=True)
     
-    # 必要な列を抽出・リネーム
     df_industry = df_industry[['Industry', 'RS_Rating', 'Buy_Pressure']].copy()
     df_industry['RS_Rating'] = pd.to_numeric(df_industry['RS_Rating'], errors='coerce')
     df_industry['Buy_Pressure'] = pd.to_numeric(df_industry['Buy_Pressure'], errors='coerce')
     df_industry = df_industry.dropna()
     
-    # File 2: Integrated Screening
     file2_path = 'data/integrated_screening_20260211_114423.xlsx'
     df_screening = pd.read_excel(file2_path, sheet_name='Screening_Results')
     
-    # Technical Score が10以上のみフィルタ
     df_screening_filtered = df_screening[df_screening['Technical_Score'] >= 10].copy()
     
-    # 必要な列を抽出
     df_screening_filtered = df_screening_filtered[[
         'Symbol', 'Industry', 'Technical_Score', 'Screening_Score', 
         'Buy_Pressure', 'Company Name'
@@ -104,7 +94,6 @@ except Exception as e:
 with st.sidebar:
     st.header("📊 フィルター設定")
     
-    # Technical Score の最小値
     min_tech_score = st.slider(
         "テクニカルスコア最小値",
         min_value=10,
@@ -113,7 +102,6 @@ with st.sidebar:
         step=1
     )
     
-    # 表示する銘柄数
     max_stocks_per_industry = st.slider(
         "業種ごとの最大表示銘柄数",
         min_value=5,
@@ -122,7 +110,6 @@ with st.sidebar:
         step=5
     )
     
-    # Industry フィルター
     selected_industries = st.multiselect(
         "業種選択（空白=全て）",
         options=sorted(df_industry['Industry'].unique()),
@@ -153,11 +140,37 @@ tab1, tab2, tab3 = st.tabs([
     "📊 業種サマリー"
 ])
 
-# 表形式で表示する関数
+
+def style_buy_pressure(val):
+    """Buy Pressure列のセルに背景色を付けるスタイル関数"""
+    try:
+        bp = float(val)
+        color = get_color_from_buy_pressure(bp)
+        return f'background-color: {color}; color: #000000; font-weight: bold;'
+    except (ValueError, TypeError):
+        return ''
+
+
+def style_symbol(row):
+    """行全体に対して、Symbol列とBuy Pressure列に色を付けるスタイル関数"""
+    styles = [''] * len(row)
+    try:
+        bp = float(row['Buy Pressure'])
+        color = get_color_from_buy_pressure(bp)
+        # Symbol列
+        symbol_idx = row.index.get_loc('Symbol')
+        styles[symbol_idx] = f'color: {color}; font-weight: bold; font-size: 16px;'
+        # Buy Pressure列
+        bp_idx = row.index.get_loc('Buy Pressure')
+        styles[bp_idx] = f'color: {color}; font-weight: bold;'
+    except (ValueError, TypeError, KeyError):
+        pass
+    return styles
+
+
 def create_industry_table(df_screening_display, df_industry_display, sort_by='Technical_Score'):
-    """業種×銘柄の表を作成"""
+    """業種×銘柄の表を作成（st.dataframe + Pandas Styler使用）"""
     
-    # 業種ごとにソート（RS_Rating降順）
     df_industry_sorted = df_industry_display.sort_values('RS_Rating', ascending=False)
     
     for _, industry_row in df_industry_sorted.iterrows():
@@ -165,7 +178,6 @@ def create_industry_table(df_screening_display, df_industry_display, sort_by='Te
         rs_rating = industry_row['RS_Rating']
         buy_pressure = industry_row['Buy_Pressure']
         
-        # この業種の銘柄を取得
         stocks_in_industry = df_screening_display[
             df_screening_display['Industry'] == industry_name
         ].sort_values(sort_by, ascending=False).head(max_stocks_per_industry)
@@ -174,7 +186,7 @@ def create_industry_table(df_screening_display, df_industry_display, sort_by='Te
             continue
         
         # 業種ヘッダー表示
-        st.markdown(f"### {html.escape(str(industry_name))}")
+        st.markdown(f"### {industry_name}")
         col1, col2, col3, col4 = st.columns([3, 1, 1, 2])
         with col1:
             st.metric("業種", industry_name)
@@ -186,66 +198,29 @@ def create_industry_table(df_screening_display, df_industry_display, sort_by='Te
             status = get_buy_pressure_status(buy_pressure)
             st.markdown(f"**{status}**")
         
-        # 表のHTMLを作成
-        table_html = """
-        <style>
-        .stock-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-            font-size: 14px;
-        }
-        .stock-table th {
-            background-color: #f0f2f6;
-            padding: 10px;
-            text-align: left;
-            border: 1px solid #ddd;
-            font-weight: bold;
-        }
-        .stock-table td {
-            padding: 8px;
-            border: 1px solid #ddd;
-        }
-        .stock-table tr:hover {
-            background-color: #f5f5f5;
-        }
-        </style>
-        <table class="stock-table">
-        <tr>
-            <th>No</th>
-            <th>Symbol</th>
-            <th>Company Name</th>
-            <th>Technical Score</th>
-            <th>Screening Score</th>
-            <th>Buy Pressure</th>
-        </tr>
-        """
+        # 表示用DataFrameを作成
+        display_df = stocks_in_industry[['Symbol', 'Company Name', 'Technical_Score', 'Screening_Score', 'Buy_Pressure']].copy()
+        display_df = display_df.reset_index(drop=True)
+        display_df.index = display_df.index + 1
+        display_df.index.name = 'No'
+        display_df.columns = ['Symbol', 'Company Name', 'Technical Score', 'Screening Score', 'Buy Pressure']
         
-        for idx, (_, stock) in enumerate(stocks_in_industry.iterrows(), 1):
-            symbol = html.escape(str(stock['Symbol']))
-            company_name = html.escape(str(stock['Company Name'])[:40]) if pd.notna(stock['Company Name']) else ''
-            tech_score = stock['Technical_Score']
-            screening_score = stock['Screening_Score']
-            stock_bp = stock['Buy_Pressure']
-            
-            # Buy Pressureに応じた色を取得
-            color = get_color_from_buy_pressure(stock_bp)
-            
-            table_html += f"""
-            <tr>
-                <td>{idx}</td>
-                <td style="color: {color}; font-weight: bold; font-size: 16px;">{symbol}</td>
-                <td>{company_name}</td>
-                <td>{tech_score}</td>
-                <td>{screening_score:.1f}</td>
-                <td style="color: {color}; font-weight: bold;">{stock_bp:.4f}</td>
-            </tr>
-            """
+        # Company Name を40文字に切り詰め
+        display_df['Company Name'] = display_df['Company Name'].apply(
+            lambda x: str(x)[:40] if pd.notna(x) else ''
+        )
         
-        table_html += "</table>"
+        # Styler適用
+        styled_df = display_df.style.apply(style_symbol, axis=1)
         
-        st.markdown(table_html, unsafe_allow_html=True)
+        # 表示
+        st.dataframe(
+            styled_df,
+            use_container_width=True,
+            height=min(len(display_df) * 40 + 50, 650)
+        )
         st.markdown("---")
+
 
 # タブ1: テクニカルスコア別
 with tab1:
@@ -261,7 +236,6 @@ with tab2:
 with tab3:
     st.header("業種別サマリー統計")
     
-    # 業種別の統計
     industry_summary = []
     for industry in df_industry_display['Industry']:
         stocks = df_screening_display[df_screening_display['Industry'] == industry]
@@ -282,14 +256,12 @@ with tab3:
     df_summary = pd.DataFrame(industry_summary)
     df_summary = df_summary.sort_values('RS Rating', ascending=False)
     
-    # サマリーテーブル表示
     st.dataframe(
         df_summary,
         use_container_width=True,
         height=600
     )
     
-    # グラフ：RS Rating vs Buy Pressure
     st.subheader("RS Rating vs Buy Pressure")
     fig = px.scatter(
         df_summary,
@@ -304,7 +276,6 @@ with tab3:
     fig.update_traces(textposition='top center')
     st.plotly_chart(fig, use_container_width=True)
     
-    # グラフ：業種別銘柄数
     st.subheader("業種別銘柄数")
     fig2 = px.bar(
         df_summary.sort_values('銘柄数', ascending=True),
