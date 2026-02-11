@@ -280,9 +280,6 @@ with tab0:
         padding: 8px 10px;
         text-align: left;
         border: 1px solid #444;
-        position: sticky;
-        top: 0;
-        z-index: 1;
     }
     #check-table td {
         padding: 6px 10px;
@@ -320,7 +317,7 @@ with tab0:
     }
     </style>
     <div id="copy-toast" class="copy-toast">📋 Copied!</div>
-    <div style="overflow-x: auto; max-height: 600px; overflow-y: auto;">
+    <div style="overflow-x: auto;">
     <table id="check-table">
     <thead>
     <tr>
@@ -383,8 +380,8 @@ with tab0:
     </script>
     """
     
-    table_height = min(len(df_check) * 38 + 60, 650)
-    st.components.v1.html(table_html, height=table_height, scrolling=True)
+    table_height = len(df_check) * 38 + 80
+    st.components.v1.html(table_html, height=table_height, scrolling=False)
 
 # タブ1: テクニカルスコア別
 with tab1:
