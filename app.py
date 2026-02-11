@@ -259,40 +259,6 @@ with tab0:
         use_container_width=True,
         height=600
     )
-    
-    # TradingView用コピーエリア
-    st.markdown("---")
-    st.subheader("📋 TradingView用シンボルリスト")
-    
-    all_symbols = []
-    for score in [14, 13, 12, 11, 10]:
-        stocks = df_screening_display[
-            df_screening_display['Technical_Score'] == score
-        ].sort_values('Buy_Pressure', ascending=False)
-        symbols = stocks['Symbol'].tolist()
-        all_symbols.extend(symbols)
-    
-    # 重複除去して改行区切り
-    unique_symbols = list(dict.fromkeys(all_symbols))
-    
-    st.text_area(
-        "全銘柄（改行区切り・コピーしてTradingViewに貼り付け）",
-        value='\n'.join(unique_symbols),
-        height=300
-    )
-    
-    # テクニカルスコア別にも用意
-    for score in [14, 13, 12, 11, 10]:
-        stocks = df_screening_display[
-            df_screening_display['Technical_Score'] == score
-        ].sort_values('Buy_Pressure', ascending=False)
-        symbols = stocks['Symbol'].tolist()
-        if symbols:
-            st.text_area(
-                f"テクニカルスコア {score}（{len(symbols)}銘柄）",
-                value='\n'.join(symbols),
-                height=150
-            )
 
 # タブ1: テクニカルスコア別
 with tab1:
