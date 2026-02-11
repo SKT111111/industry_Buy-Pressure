@@ -265,6 +265,7 @@ with tab3:
         yaxis=dict(
             scaleanchor='x',
             scaleratio=1,
+            range=[0, 1],
         )
     )
     st.plotly_chart(fig, use_container_width=True)
