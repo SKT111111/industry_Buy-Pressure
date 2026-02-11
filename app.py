@@ -236,10 +236,12 @@ def create_industry_table(df_screening_display, df_industry_display, sort_by='Te
 
 # タブ0: チェック
 with tab0:
-    st.header("業種別サマリー統計")
+    st.header("Buy Pressure")
+    
+    df_check = df_summary[['業種', 'RS Rating', 'Buy Pressure', 'ステータス']].copy()
     
     st.dataframe(
-        df_summary,
+        df_check,
         use_container_width=True,
         height=600
     )
