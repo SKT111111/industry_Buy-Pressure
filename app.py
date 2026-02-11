@@ -133,8 +133,35 @@ if selected_industries:
 else:
     df_industry_display = df_industry.copy()
 
+# 業種別サマリーデータを作成（共通で使用）
+def create_summary_data(df_screening_display, df_industry_display):
+    """業種別サマリーデータを作成"""
+    industry_summary = []
+    for industry in df_industry_display['Industry']:
+        stocks = df_screening_display[df_screening_display['Industry'] == industry]
+        industry_data = df_industry_display[df_industry_display['Industry'] == industry].iloc[0]
+        
+        status = get_buy_pressure_status(industry_data['Buy_Pressure'])
+        
+        industry_summary.append({
+            '業種': industry,
+            'RS Rating': industry_data['RS_Rating'],
+            'Buy Pressure': industry_data['Buy_Pressure'],
+            'ステータス': status,
+            '銘柄数': len(stocks),
+            '平均テクニカルスコア': stocks['Technical_Score'].mean() if len(stocks) > 0 else 0,
+            '平均スクリーニングスコア': stocks['Screening_Score'].mean() if len(stocks) > 0 else 0,
+        })
+    
+    df_summary = pd.DataFrame(industry_summary)
+    df_summary = df_summary.sort_values('RS Rating', ascending=False)
+    return df_summary
+
+df_summary = create_summary_data(df_screening_display, df_industry_display)
+
 # タブ作成
-tab1, tab2, tab3 = st.tabs([
+tab0, tab1, tab2, tab3 = st.tabs([
+    "✅ チェック",
     "📈 テクニカルスコア別マトリックス", 
     "🎯 スクリーニングスコア別マトリックス",
     "📊 業種サマリー"
@@ -207,6 +234,16 @@ def create_industry_table(df_screening_display, df_industry_display, sort_by='Te
         st.markdown("---")
 
 
+# タブ0: チェック
+with tab0:
+    st.header("業種別サマリー統計")
+    
+    st.dataframe(
+        df_summary,
+        use_container_width=True,
+        height=600
+    )
+
 # タブ1: テクニカルスコア別
 with tab1:
     st.header("テクニカルスコア別 業種×銘柄マトリックス")
@@ -220,26 +257,6 @@ with tab2:
 # タブ3: 業種サマリー
 with tab3:
     st.header("業種別サマリー統計")
-    
-    industry_summary = []
-    for industry in df_industry_display['Industry']:
-        stocks = df_screening_display[df_screening_display['Industry'] == industry]
-        industry_data = df_industry_display[df_industry_display['Industry'] == industry].iloc[0]
-        
-        status = get_buy_pressure_status(industry_data['Buy_Pressure'])
-        
-        industry_summary.append({
-            '業種': industry,
-            'RS Rating': industry_data['RS_Rating'],
-            'Buy Pressure': industry_data['Buy_Pressure'],
-            'ステータス': status,
-            '銘柄数': len(stocks),
-            '平均テクニカルスコア': stocks['Technical_Score'].mean() if len(stocks) > 0 else 0,
-            '平均スクリーニングスコア': stocks['Screening_Score'].mean() if len(stocks) > 0 else 0,
-        })
-    
-    df_summary = pd.DataFrame(industry_summary)
-    df_summary = df_summary.sort_values('RS Rating', ascending=False)
     
     st.dataframe(
         df_summary,
