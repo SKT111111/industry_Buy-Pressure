@@ -86,13 +86,12 @@ def find_latest_file(directory, prefix):
             f"'{directory}/' 内に日付パターン(YYYYMMDD_HHMMSS)を含むファイルが見つかりません。"
         )
 
-    # YYYYMMDD_HHMMSS は辞書順 = 時系列順
     files_with_dates.sort(key=lambda x: x[1], reverse=True)
     return files_with_dates[0][0]
 
 
 # ============================================================
-# データ読み込み関数（自動検出版）
+# データ読み込み関数（新旧フォーマット両対応）
 # ============================================================
 @st.cache_data
 def load_data():
@@ -107,11 +106,43 @@ def load_data():
     file2_name = os.path.basename(file2_path)
 
     # --- industry_etf_multicondition 読み込み ---
-    df_industry_raw = pd.read_excel(file1_path, sheet_name='Multi_Condition_Passed')
-    header_row = df_industry_raw[df_industry_raw.iloc[:, 0] == 'Industry'].index[0]
-    df_industry = pd.read_excel(file1_path, sheet_name='Multi_Condition_Passed', skiprows=header_row)
-    df_industry.columns = df_industry.iloc[0]
-    df_industry = df_industry[1:].reset_index(drop=True)
+    # まずシート名一覧を確認
+    xl = pd.ExcelFile(file1_path)
+    sheet_names = xl.sheet_names
+
+    df_industry = None
+
+    if 'Multi_Condition_Passed' in sheet_names:
+        df_raw = pd.read_excel(file1_path, sheet_name='Multi_Condition_Passed')
+
+        # カラム名に 'Industry' が既にあるか確認
+        if 'Industry' in df_raw.columns:
+            # 新フォーマット: 1行目からデータが始まっている
+            df_industry = df_raw.copy()
+        else:
+            # 旧フォーマット: シート途中に 'Industry' ヘッダー行がある
+            industry_matches = df_raw[df_raw.iloc[:, 0] == 'Industry']
+            if len(industry_matches) > 0:
+                header_row = industry_matches.index[0]
+                df_industry = pd.read_excel(
+                    file1_path,
+                    sheet_name='Multi_Condition_Passed',
+                    skiprows=header_row
+                )
+                df_industry.columns = df_industry.iloc[0]
+                df_industry = df_industry[1:].reset_index(drop=True)
+    else:
+        # シート名が異なる場合: 最初のシートを試す
+        df_raw = pd.read_excel(file1_path, sheet_name=0)
+        if 'Industry' in df_raw.columns:
+            df_industry = df_raw.copy()
+
+    if df_industry is None:
+        raise ValueError(
+            f"'{file1_name}' から Industry データを読み取れませんでした。"
+            f" シート名: {sheet_names}"
+        )
+
     df_industry = df_industry[['Industry', 'RS_Rating', 'Buy_Pressure']].copy()
     df_industry['RS_Rating'] = pd.to_numeric(df_industry['RS_Rating'], errors='coerce')
     df_industry['Buy_Pressure'] = pd.to_numeric(df_industry['Buy_Pressure'], errors='coerce')
