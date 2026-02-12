@@ -8,6 +8,7 @@ import html
 import glob
 import os
 import re
+from datetime import datetime, timedelta
 
 # ページ設定
 st.set_page_config(
@@ -90,6 +91,16 @@ def find_latest_file(directory, prefix):
     return files_with_dates[0][0]
 
 
+def get_data_date_from_filename(filename):
+    """ファイル名からYYYYMMDDを抽出し、1日引いた日付文字列を返す"""
+    match = re.search(r'(\d{8})_\d{6}', filename)
+    if match:
+        file_date = datetime.strptime(match.group(1), '%Y%m%d')
+        data_date = file_date - timedelta(days=1)
+        return data_date.strftime('%Y-%m-%d')
+    return "不明"
+
+
 # ============================================================
 # データ読み込み関数（新旧フォーマット両対応）
 # ============================================================
@@ -105,8 +116,10 @@ def load_data():
     file1_name = os.path.basename(file1_path)
     file2_name = os.path.basename(file2_path)
 
+    # ファイル名から日付取得（-1日）
+    data_date = get_data_date_from_filename(file1_name)
+
     # --- industry_etf_multicondition 読み込み ---
-    # まずシート名一覧を確認
     xl = pd.ExcelFile(file1_path)
     sheet_names = xl.sheet_names
 
@@ -115,12 +128,9 @@ def load_data():
     if 'Multi_Condition_Passed' in sheet_names:
         df_raw = pd.read_excel(file1_path, sheet_name='Multi_Condition_Passed')
 
-        # カラム名に 'Industry' が既にあるか確認
         if 'Industry' in df_raw.columns:
-            # 新フォーマット: 1行目からデータが始まっている
             df_industry = df_raw.copy()
         else:
-            # 旧フォーマット: シート途中に 'Industry' ヘッダー行がある
             industry_matches = df_raw[df_raw.iloc[:, 0] == 'Industry']
             if len(industry_matches) > 0:
                 header_row = industry_matches.index[0]
@@ -132,7 +142,6 @@ def load_data():
                 df_industry.columns = df_industry.iloc[0]
                 df_industry = df_industry[1:].reset_index(drop=True)
     else:
-        # シート名が異なる場合: 最初のシートを試す
         df_raw = pd.read_excel(file1_path, sheet_name=0)
         if 'Industry' in df_raw.columns:
             df_industry = df_raw.copy()
@@ -156,14 +165,14 @@ def load_data():
         'Buy_Pressure', 'Company Name'
     ]].copy()
 
-    return df_industry, df_screening_filtered, file1_name, file2_name
+    return df_industry, df_screening_filtered, data_date
 
 
 # データ読み込み
 try:
-    df_industry, df_screening, loaded_file1, loaded_file2 = load_data()
+    df_industry, df_screening, data_date = load_data()
     st.success(f"✅ データ読み込み成功: {len(df_industry)} 業種, {len(df_screening)} 銘柄")
-    st.caption(f"📂 読み込みファイル: `{loaded_file1}` / `{loaded_file2}`")
+    st.caption(f"📅 データ日付: **{data_date}**")
 except Exception as e:
     st.error(f"❌ データ読み込みエラー: {str(e)}")
     st.stop()
@@ -481,21 +490,13 @@ with tab3:
 
 
 # ============================================================
-# フッター（日付もファイル名から自動取得）
+# フッター
 # ============================================================
-footer_date = "不明"
-try:
-    match = re.search(r'(\d{4})(\d{2})(\d{2})_', loaded_file1)
-    if match:
-        footer_date = f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
-except Exception:
-    pass
-
 st.markdown("---")
 st.markdown(
     f"""
     <div style="text-align: center; color: gray; font-size: 12px;">
-    Industry Buy Pressure Dashboard | Data updated: {footer_date}
+    Industry Buy Pressure Dashboard | Data: {data_date}
     </div>
     """,
     unsafe_allow_html=True
