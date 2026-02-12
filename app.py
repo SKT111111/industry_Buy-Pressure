@@ -19,6 +19,7 @@ st.set_page_config(
 st.title("🔥 Industry Buy Pressure Dashboard")
 st.markdown("---")
 
+
 # Buy Pressure に応じた色を返す関数（緑→黄→赤のグラデーション）
 def get_color_from_buy_pressure(buy_pressure):
     """Buy Pressureに基づいて色を返す（0=赤、0.5=黄、1=緑）"""
@@ -36,6 +37,7 @@ def get_color_from_buy_pressure(buy_pressure):
         g = int(255 * ratio)
         b = 0
     return f"#{r:02x}{g:02x}{b:02x}"
+
 
 # Buy Pressure のステータス判定関数
 def get_buy_pressure_status(buy_pressure):
@@ -55,28 +57,13 @@ def get_buy_pressure_status(buy_pressure):
 
 
 # ============================================================
-# ★ 最新ファイル自動検出ユーティリティ（ここが新規追加部分）
+# 最新ファイル自動検出
 # ============================================================
-def find_latest_file(directory: str, prefix: str) -> str:
+def find_latest_file(directory, prefix):
     """
-    指定ディレクトリから、指定プレフィックスに一致するファイルのうち
-    ファイル名に埋め込まれた日付（YYYYMMDD_HHMMSS）が最も新しいものを返す。
-
-    例:
-        prefix="industry_etf_multicondition_"
-        → industry_etf_multicondition_20260212_160443.xlsx が最新なら、そのパスを返す
-
-    Parameters:
-        directory: 検索対象ディレクトリ（例: "data"）
-        prefix: ファイル名のプレフィックス（例: "industry_etf_multicondition_"）
-
-    Returns:
-        最新ファイルのフルパス
-
-    Raises:
-        FileNotFoundError: 該当ファイルが見つからない場合
+    指定ディレクトリから、プレフィックスが一致するファイルのうち
+    ファイル名の日付（YYYYMMDD_HHMMSS）が最も新しいものを返す。
     """
-    # プレフィックスに一致する .xlsx ファイルを全て取得
     pattern = os.path.join(directory, f"{prefix}*.xlsx")
     matched_files = glob.glob(pattern)
 
@@ -85,31 +72,27 @@ def find_latest_file(directory: str, prefix: str) -> str:
             f"'{directory}/' 内に '{prefix}*.xlsx' に一致するファイルが見つかりません。"
         )
 
-    # ファイル名から日時部分（YYYYMMDD_HHMMSS）を抽出してソート
     date_pattern = re.compile(r'(\d{8}_\d{6})\.xlsx$')
-    
+
     files_with_dates = []
     for filepath in matched_files:
         filename = os.path.basename(filepath)
         match = date_pattern.search(filename)
         if match:
-            date_str = match.group(1)  # "20260212_160443"
-            files_with_dates.append((filepath, date_str))
+            files_with_dates.append((filepath, match.group(1)))
 
     if not files_with_dates:
         raise FileNotFoundError(
-            f"'{directory}/' 内に '{prefix}*.xlsx' で日付パターン(YYYYMMDD_HHMMSS)を含むファイルが見つかりません。"
+            f"'{directory}/' 内に日付パターン(YYYYMMDD_HHMMSS)を含むファイルが見つかりません。"
         )
 
-    # 日時文字列は YYYYMMDD_HHMMSS 形式なので、文字列の辞書順ソートでOK
+    # YYYYMMDD_HHMMSS は辞書順 = 時系列順
     files_with_dates.sort(key=lambda x: x[1], reverse=True)
-    
-    latest_path = files_with_dates[0][0]
-    return latest_path
+    return files_with_dates[0][0]
 
 
 # ============================================================
-# ★ データ読み込み関数（自動検出版に改修）
+# データ読み込み関数（自動検出版）
 # ============================================================
 @st.cache_data
 def load_data():
@@ -117,13 +100,11 @@ def load_data():
 
     DATA_DIR = "data"
 
-    # --- 最新ファイルを自動検出 ---
     file1_path = find_latest_file(DATA_DIR, "industry_etf_multicondition_")
     file2_path = find_latest_file(DATA_DIR, "integrated_screening_")
 
-    # --- 読み込んだファイル名を表示用に保持 ---
-    st.session_state['loaded_file1'] = os.path.basename(file1_path)
-    st.session_state['loaded_file2'] = os.path.basename(file2_path)
+    file1_name = os.path.basename(file1_path)
+    file2_name = os.path.basename(file2_path)
 
     # --- industry_etf_multicondition 読み込み ---
     df_industry_raw = pd.read_excel(file1_path, sheet_name='Multi_Condition_Passed')
@@ -144,32 +125,23 @@ def load_data():
         'Buy_Pressure', 'Company Name'
     ]].copy()
 
-    return df_industry, df_screening_filtered
+    return df_industry, df_screening_filtered, file1_name, file2_name
 
 
 # データ読み込み
 try:
-    df_industry, df_screening = load_data()
-
-    # どのファイルが読み込まれたかを表示
-    loaded1 = st.session_state.get('loaded_file1', '不明')
-    loaded2 = st.session_state.get('loaded_file2', '不明')
+    df_industry, df_screening, loaded_file1, loaded_file2 = load_data()
     st.success(f"✅ データ読み込み成功: {len(df_industry)} 業種, {len(df_screening)} 銘柄")
-    st.caption(f"📂 読み込みファイル: `{loaded1}` / `{loaded2}`")
-
+    st.caption(f"📂 読み込みファイル: `{loaded_file1}` / `{loaded_file2}`")
 except Exception as e:
     st.error(f"❌ データ読み込みエラー: {str(e)}")
     st.stop()
 
 
-# ============================================================
-# 以下は変更なし（元のコードそのまま）
-# ============================================================
-
 # サイドバー
 with st.sidebar:
     st.header("📊 フィルター設定")
-    
+
     min_tech_score = st.slider(
         "テクニカルスコア最小値",
         min_value=10,
@@ -177,7 +149,7 @@ with st.sidebar:
         value=10,
         step=1
     )
-    
+
     max_stocks_per_industry = st.slider(
         "業種ごとの最大表示銘柄数",
         min_value=5,
@@ -185,18 +157,19 @@ with st.sidebar:
         value=15,
         step=5
     )
-    
+
     selected_industries = st.multiselect(
         "業種選択（空白=全て）",
         options=sorted(df_industry['Industry'].unique()),
         default=None
     )
-    
+
     st.markdown("---")
     st.markdown("### 🎨 カラーコード")
     st.markdown("- 🟢 **緑**: Buy Pressure 高い")
     st.markdown("- 🟡 **黄**: Buy Pressure 中程度")
     st.markdown("- 🔴 **赤**: Buy Pressure 低い")
+
 
 # フィルタ適用
 df_screening_display = df_screening[df_screening['Technical_Score'] >= min_tech_score].copy()
@@ -209,13 +182,14 @@ if selected_industries:
 else:
     df_industry_display = df_industry.copy()
 
-# 業種別サマリーデータを作成（共通で使用）
-def create_summary_data(df_screening_display, df_industry_display):
+
+# 業種別サマリーデータを作成
+def create_summary_data(df_screening_disp, df_industry_disp):
     """業種別サマリーデータを作成"""
     industry_summary = []
-    for industry in df_industry_display['Industry']:
-        stocks = df_screening_display[df_screening_display['Industry'] == industry]
-        industry_data = df_industry_display[df_industry_display['Industry'] == industry].iloc[0]
+    for industry in df_industry_disp['Industry']:
+        stocks = df_screening_disp[df_screening_disp['Industry'] == industry]
+        industry_data = df_industry_disp[df_industry_disp['Industry'] == industry].iloc[0]
         status = get_buy_pressure_status(industry_data['Buy_Pressure'])
         industry_summary.append({
             '業種': industry,
@@ -230,6 +204,7 @@ def create_summary_data(df_screening_display, df_industry_display):
     df_summary = df_summary.sort_values('RS Rating', ascending=False)
     return df_summary
 
+
 df_summary = create_summary_data(df_screening_display, df_industry_display)
 
 # タブ作成
@@ -242,6 +217,7 @@ tab0, tab1, tab2, tab3 = st.tabs([
 
 
 def style_symbol(row):
+    """行全体に対して、Symbol列とBuy Pressure列に色を付けるスタイル関数"""
     styles = [''] * len(row)
     try:
         bp = float(row['Buy Pressure'])
@@ -255,17 +231,22 @@ def style_symbol(row):
     return styles
 
 
-def create_industry_table(df_screening_display, df_industry_display, sort_by='Technical_Score'):
-    df_industry_sorted = df_industry_display.sort_values('RS_Rating', ascending=False)
+def create_industry_table(df_screening_disp, df_industry_disp, sort_by='Technical_Score'):
+    """業種×銘柄の表を作成"""
+    df_industry_sorted = df_industry_disp.sort_values('RS_Rating', ascending=False)
+
     for _, industry_row in df_industry_sorted.iterrows():
         industry_name = industry_row['Industry']
         rs_rating = industry_row['RS_Rating']
         buy_pressure = industry_row['Buy_Pressure']
-        stocks_in_industry = df_screening_display[
-            df_screening_display['Industry'] == industry_name
+
+        stocks_in_industry = df_screening_disp[
+            df_screening_disp['Industry'] == industry_name
         ].sort_values(sort_by, ascending=False).head(max_stocks_per_industry)
+
         if len(stocks_in_industry) == 0:
             continue
+
         st.markdown(f"### {industry_name}")
         col1, col2, col3, col4 = st.columns([3, 1, 1, 2])
         with col1:
@@ -277,7 +258,10 @@ def create_industry_table(df_screening_display, df_industry_display, sort_by='Te
         with col4:
             status = get_buy_pressure_status(buy_pressure)
             st.markdown(f"**{status}**")
-        display_df = stocks_in_industry[['Symbol', 'Company Name', 'Technical_Score', 'Screening_Score', 'Buy_Pressure']].copy()
+
+        display_df = stocks_in_industry[
+            ['Symbol', 'Company Name', 'Technical_Score', 'Screening_Score', 'Buy_Pressure']
+        ].copy()
         display_df = display_df.reset_index(drop=True)
         display_df.index = display_df.index + 1
         display_df.index.name = 'No'
@@ -285,18 +269,26 @@ def create_industry_table(df_screening_display, df_industry_display, sort_by='Te
         display_df['Company Name'] = display_df['Company Name'].apply(
             lambda x: str(x)[:40] if pd.notna(x) else ''
         )
+
         styled_df = display_df.style.apply(style_symbol, axis=1)
-        st.dataframe(styled_df, use_container_width=True, height=min(len(display_df) * 40 + 50, 650))
+        st.dataframe(
+            styled_df,
+            use_container_width=True,
+            height=min(len(display_df) * 40 + 50, 650)
+        )
         st.markdown("---")
 
 
-def get_colored_symbols_html(industry, score, df_screening_display):
-    stocks = df_screening_display[
-        (df_screening_display['Industry'] == industry) &
-        (df_screening_display['Technical_Score'] == score)
+def get_colored_symbols_html(industry, score, df_screening_disp):
+    """業種とスコアに該当する銘柄を、個別のBuy Pressureに応じた色付きHTMLで返す"""
+    stocks = df_screening_disp[
+        (df_screening_disp['Industry'] == industry) &
+        (df_screening_disp['Technical_Score'] == score)
     ].sort_values('Buy_Pressure', ascending=False)
+
     if len(stocks) == 0:
         return '', ''
+
     colored_spans = []
     plain_symbols = []
     for _, stock in stocks.iterrows():
@@ -305,15 +297,20 @@ def get_colored_symbols_html(industry, score, df_screening_display):
         color = get_color_from_buy_pressure(bp)
         colored_spans.append(f'<span style="color:{color}; font-weight:bold;">{symbol}</span>')
         plain_symbols.append(symbol)
+
     display_html = ', '.join(colored_spans)
     copy_text = ', '.join(plain_symbols)
     return display_html, copy_text
 
 
+# ============================================================
 # タブ0: チェック
+# ============================================================
 with tab0:
     st.header("Buy Pressure")
+
     df_check = df_summary[['業種', 'RS Rating', 'Buy Pressure', 'ステータス']].copy()
+
     max_symbols_per_row = []
     for _, row in df_check.iterrows():
         row_max = 0
@@ -344,6 +341,7 @@ with tab0:
         <th>TS 14</th><th>TS 13</th><th>TS 12</th><th>TS 11</th><th>TS 10</th>
     </tr></thead><tbody>
     """
+
     for idx, row in df_check.iterrows():
         bp = row['Buy Pressure']
         bp_color = get_color_from_buy_pressure(bp)
@@ -351,14 +349,24 @@ with tab0:
         rs = f"{row['RS Rating']:.1f}"
         bp_val = f"{bp:.3f}"
         status = html.escape(str(row['ステータス']))
-        table_html += f'<tr><td>{industry}</td><td>{rs}</td><td style="color: {bp_color}; font-weight: bold;">{bp_val}</td><td>{status}</td>'
+
+        table_html += f'<tr><td>{industry}</td><td>{rs}</td>'
+        table_html += f'<td style="color: {bp_color}; font-weight: bold;">{bp_val}</td>'
+        table_html += f'<td>{status}</td>'
+
         for score in [14, 13, 12, 11, 10]:
-            display_html, copy_text = get_colored_symbols_html(row['業種'], score, df_screening_display)
+            display_html, copy_text = get_colored_symbols_html(
+                row['業種'], score, df_screening_display
+            )
             if display_html:
                 escaped_copy = html.escape(copy_text).replace("'", "\\'")
-                table_html += f"<td class=\"copyable\" onclick=\"copySymbols(this, '{escaped_copy}')\" title=\"クリックでコピー\">{display_html}</td>"
+                table_html += (
+                    f'<td class="copyable" onclick="copySymbols(this, \'{escaped_copy}\')" '
+                    f'title="クリックでコピー">{display_html}</td>'
+                )
             else:
                 table_html += '<td></td>'
+
         table_html += "</tr>"
 
     table_html += """
@@ -374,47 +382,82 @@ with tab0:
     }
     </script>
     """
+
     total_height = 80
     for sym_count in max_symbols_per_row:
-        if sym_count <= 3: total_height += 40
-        elif sym_count <= 6: total_height += 55
-        elif sym_count <= 10: total_height += 75
-        else: total_height += 95
+        if sym_count <= 3:
+            total_height += 40
+        elif sym_count <= 6:
+            total_height += 55
+        elif sym_count <= 10:
+            total_height += 75
+        else:
+            total_height += 95
+
     st.components.v1.html(table_html, height=total_height, scrolling=False)
 
+
+# ============================================================
 # タブ1: テクニカルスコア別
+# ============================================================
 with tab1:
     st.header("テクニカルスコア別 業種×銘柄マトリックス")
     create_industry_table(df_screening_display, df_industry_display, sort_by='Technical_Score')
 
+
+# ============================================================
 # タブ2: スクリーニングスコア別
+# ============================================================
 with tab2:
     st.header("スクリーニングスコア (テクニカル+ファンダメンタル) 別 業種×銘柄マトリックス")
     create_industry_table(df_screening_display, df_industry_display, sort_by='Screening_Score')
 
+
+# ============================================================
 # タブ3: 業種サマリー
+# ============================================================
 with tab3:
     st.header("業種別サマリー統計")
+
     st.dataframe(df_summary, use_container_width=True, height=600)
+
     st.subheader("RS Rating vs Buy Pressure")
-    fig = px.scatter(df_summary, x='RS Rating', y='Buy Pressure', size='銘柄数', color='ステータス',
-                     hover_data=['業種', '平均テクニカルスコア'], text='業種', title='業種別 RS Rating vs Buy Pressure')
+    fig = px.scatter(
+        df_summary,
+        x='RS Rating',
+        y='Buy Pressure',
+        size='銘柄数',
+        color='ステータス',
+        hover_data=['業種', '平均テクニカルスコア'],
+        text='業種',
+        title='業種別 RS Rating vs Buy Pressure'
+    )
     fig.update_traces(textposition='top center')
     fig.update_layout(height=700, yaxis=dict(range=[0.5, 1]))
     st.plotly_chart(fig, use_container_width=True)
+
     st.subheader("業種別銘柄数")
-    fig2 = px.bar(df_summary.sort_values('銘柄数', ascending=True), x='銘柄数', y='業種', orientation='h',
-                  color='Buy Pressure', color_continuous_scale='RdYlGn', title='業種別銘柄数 (テクニカルスコア10以上)')
+    fig2 = px.bar(
+        df_summary.sort_values('銘柄数', ascending=True),
+        x='銘柄数',
+        y='業種',
+        orientation='h',
+        color='Buy Pressure',
+        color_continuous_scale='RdYlGn',
+        title='業種別銘柄数 (テクニカルスコア10以上)'
+    )
     st.plotly_chart(fig2, use_container_width=True)
 
-# フッター（日付も自動化）
+
+# ============================================================
+# フッター（日付もファイル名から自動取得）
+# ============================================================
 footer_date = "不明"
 try:
-    fname = st.session_state.get('loaded_file1', '')
-    match = re.search(r'(\d{4})(\d{2})(\d{2})_', fname)
+    match = re.search(r'(\d{4})(\d{2})(\d{2})_', loaded_file1)
     if match:
         footer_date = f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
-except:
+except Exception:
     pass
 
 st.markdown("---")
