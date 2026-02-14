@@ -57,6 +57,20 @@ def get_buy_pressure_status(buy_pressure):
         return "➖ NEUTRAL"
 
 
+# ステータスのソート順序を返す関数
+def get_status_sort_order(status):
+    """ステータスのソート順序を返す（WEAK=1 → EXTREME=6）"""
+    order = {
+        "💀 WEAK": 1,
+        "⚠️ CAUTION": 2,
+        "➖ NEUTRAL": 3,
+        "📈 BUY": 4,
+        "🚀 STRONG": 5,
+        "🔥 EXTREME": 6,
+    }
+    return order.get(status, 0)
+
+
 # ============================================================
 # 最新ファイル自動検出
 # ============================================================
@@ -235,6 +249,7 @@ def create_summary_data(df_screening_disp, df_industry_disp):
             '業種': industry,
             'RS Rating': industry_data['RS_Rating'],
             'Buy Pressure': industry_data['Buy_Pressure'],
+            'ステータス順': get_status_sort_order(status),
             'ステータス': status,
             '銘柄数': len(stocks),
             '平均テクニカルスコア': stocks['Technical_Score'].mean() if len(stocks) > 0 else 0,
@@ -459,7 +474,27 @@ with tab2:
 with tab3:
     st.header("業種別サマリー統計")
 
-    st.dataframe(df_summary, use_container_width=True, height=600)
+    st.dataframe(
+        df_summary,
+        use_container_width=True,
+        height=600,
+        column_order=[
+            '業種', 'RS Rating', 'Buy Pressure',
+            'ステータス順', 'ステータス',
+            '銘柄数', '平均テクニカルスコア', '平均スクリーニングスコア'
+        ],
+        column_config={
+            'ステータス順': st.column_config.NumberColumn(
+                'ステータス↕',
+                help='ステータスの並び替えにはこの列をクリック（WEAK=1 → EXTREME=6）',
+                width='small',
+            ),
+            'ステータス': st.column_config.TextColumn(
+                'ステータス',
+                width='medium',
+            ),
+        },
+    )
 
     st.subheader("RS Rating vs Buy Pressure")
     fig = px.scatter(
