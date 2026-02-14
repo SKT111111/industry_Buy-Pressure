@@ -40,9 +40,26 @@ def get_color_from_buy_pressure(buy_pressure):
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-# Buy Pressure のステータス判定関数
+# Buy Pressure のステータス判定関数（ソート用プレフィックス付き）
 def get_buy_pressure_status(buy_pressure):
-    """Buy Pressureに基づいてステータスを返す"""
+    """Buy Pressureに基づいてステータスを返す（先頭にソート順番号付き）"""
+    if buy_pressure > 0.667:
+        return "3 🔥 EXTREME"
+    elif buy_pressure > 0.60:
+        return "2 🚀 STRONG"
+    elif buy_pressure > 0.55:
+        return "1 📈 BUY"
+    elif buy_pressure < 0.333:
+        return "0a 💀 WEAK"
+    elif buy_pressure < 0.45:
+        return "0b ⚠️ CAUTION"
+    else:
+        return "0c ➖ NEUTRAL"
+
+
+# チェックタブ等で番号なし表示用
+def get_buy_pressure_status_display(buy_pressure):
+    """Buy Pressureに基づいてステータスを返す（表示用・番号なし）"""
     if buy_pressure > 0.667:
         return "🔥 EXTREME"
     elif buy_pressure > 0.60:
@@ -55,20 +72,6 @@ def get_buy_pressure_status(buy_pressure):
         return "⚠️ CAUTION"
     else:
         return "➖ NEUTRAL"
-
-
-# ステータスのソート順序を返す関数
-def get_status_sort_order(status):
-    """ステータスのソート順序を返す（WEAK=1 → EXTREME=6）"""
-    order = {
-        "💀 WEAK": 1,
-        "⚠️ CAUTION": 2,
-        "➖ NEUTRAL": 3,
-        "📈 BUY": 4,
-        "🚀 STRONG": 5,
-        "🔥 EXTREME": 6,
-    }
-    return order.get(status, 0)
 
 
 # ============================================================
@@ -249,7 +252,6 @@ def create_summary_data(df_screening_disp, df_industry_disp):
             '業種': industry,
             'RS Rating': industry_data['RS_Rating'],
             'Buy Pressure': industry_data['Buy_Pressure'],
-            'ステータス順': get_status_sort_order(status),
             'ステータス': status,
             '銘柄数': len(stocks),
             '平均テクニカルスコア': stocks['Technical_Score'].mean() if len(stocks) > 0 else 0,
@@ -311,7 +313,7 @@ def create_industry_table(df_screening_disp, df_industry_disp, sort_by='Technica
         with col3:
             st.metric("Buy Pressure", f"{buy_pressure:.3f}")
         with col4:
-            status = get_buy_pressure_status(buy_pressure)
+            status = get_buy_pressure_status_display(buy_pressure)
             st.markdown(f"**{status}**")
 
         display_df = stocks_in_industry[
@@ -403,7 +405,10 @@ with tab0:
         industry = html.escape(str(row['業種']))
         rs = f"{row['RS Rating']:.1f}"
         bp_val = f"{bp:.3f}"
-        status = html.escape(str(row['ステータス']))
+        # チェックタブではプレフィックス付きステータスから番号を除去して表示
+        status_raw = str(row['ステータス'])
+        status_display = re.sub(r'^\d+[a-z]?\s+', '', status_raw)
+        status = html.escape(status_display)
 
         table_html += f'<tr><td>{industry}</td><td>{rs}</td>'
         table_html += f'<td style="color: {bp_color}; font-weight: bold;">{bp_val}</td>'
@@ -478,19 +483,10 @@ with tab3:
         df_summary,
         use_container_width=True,
         height=600,
-        column_order=[
-            '業種', 'RS Rating', 'Buy Pressure',
-            'ステータス順', 'ステータス',
-            '銘柄数', '平均テクニカルスコア', '平均スクリーニングスコア'
-        ],
         column_config={
-            'ステータス順': st.column_config.NumberColumn(
-                'ステータス↕',
-                help='ステータスの並び替えにはこの列をクリック（WEAK=1 → EXTREME=6）',
-                width='small',
-            ),
             'ステータス': st.column_config.TextColumn(
                 'ステータス',
+                help='クリックでソート: BUY → STRONG → EXTREME',
                 width='medium',
             ),
         },
