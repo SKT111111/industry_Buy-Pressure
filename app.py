@@ -507,15 +507,33 @@ with tab3:
     fig.update_layout(height=700, yaxis=dict(range=[0.5, 1]))
     st.plotly_chart(fig, use_container_width=True)
 
-    st.subheader("業種別銘柄数")
+    # ============================================================
+    # 業種別BPランキング（全業種、棒の色=RS Rating）
+    # ============================================================
+    st.subheader("業種別BPランキング")
+
+    # 全業種のデータを使う（フィルタに関係なく全業種表示）
+    df_bp_ranking = df_industry.copy()
+    df_bp_ranking = df_bp_ranking.sort_values('Buy_Pressure', ascending=True)
+
     fig2 = px.bar(
-        df_summary.sort_values('銘柄数', ascending=True),
-        x='銘柄数',
-        y='業種',
+        df_bp_ranking,
+        x='Buy_Pressure',
+        y='Industry',
         orientation='h',
-        color='Buy Pressure',
+        color='RS_Rating',
         color_continuous_scale='RdYlGn',
-        title='業種別銘柄数 (テクニカルスコア10以上)'
+        title='業種別BPランキング（色: RS Rating）',
+        labels={
+            'Buy_Pressure': 'Buy Pressure',
+            'Industry': '業種',
+            'RS_Rating': 'RS Rating',
+        },
+    )
+    fig2.update_layout(
+        height=max(len(df_bp_ranking) * 28, 600),
+        yaxis=dict(dtick=1),
+        coloraxis_colorbar=dict(title='RS Rating'),
     )
     st.plotly_chart(fig2, use_container_width=True)
 
