@@ -174,6 +174,24 @@ def load_data():
     df_industry['Buy_Pressure'] = pd.to_numeric(df_industry['Buy_Pressure'], errors='coerce')
     df_industry = df_industry.dropna()
 
+    # --- Full_Results シートから全業種データを読み込み ---
+    df_all_industry = None
+    if 'Full_Results' in sheet_names:
+        df_full = pd.read_excel(file1_path, sheet_name='Full_Results')
+        if 'Industry' in df_full.columns and 'Buy_Pressure' in df_full.columns:
+            cols_to_use = ['Industry', 'Buy_Pressure']
+            if 'RS_Rating' in df_full.columns:
+                cols_to_use.append('RS_Rating')
+            df_all_industry = df_full[cols_to_use].copy()
+            df_all_industry['Buy_Pressure'] = pd.to_numeric(df_all_industry['Buy_Pressure'], errors='coerce')
+            if 'RS_Rating' in df_all_industry.columns:
+                df_all_industry['RS_Rating'] = pd.to_numeric(df_all_industry['RS_Rating'], errors='coerce')
+            df_all_industry = df_all_industry.dropna(subset=['Buy_Pressure'])
+
+    # Full_Results が無い場合はフィルタ済みデータをフォールバック
+    if df_all_industry is None:
+        df_all_industry = df_industry.copy()
+
     # --- integrated_screening 読み込み ---
     df_screening = pd.read_excel(file2_path, sheet_name='Screening_Results')
     df_screening_filtered = df_screening[df_screening['Technical_Score'] >= 10].copy()
@@ -182,13 +200,13 @@ def load_data():
         'Buy_Pressure', 'Company Name'
     ]].copy()
 
-    return df_industry, df_screening_filtered, data_date
+    return df_industry, df_all_industry, df_screening_filtered, data_date
 
 
 # データ読み込み
 try:
-    df_industry, df_screening, data_date = load_data()
-    st.success(f"✅ データ読み込み成功: {len(df_industry)} 業種, {len(df_screening)} 銘柄")
+    df_industry, df_all_industry, df_screening, data_date = load_data()
+    st.success(f"✅ データ読み込み成功: {len(df_industry)} 業種 (条件通過), {len(df_all_industry)} 業種 (全体), {len(df_screening)} 銘柄")
     st.caption(f"📅 データ日付: **{data_date}**")
 except Exception as e:
     st.error(f"❌ データ読み込みエラー: {str(e)}")
@@ -508,12 +526,11 @@ with tab3:
     st.plotly_chart(fig, use_container_width=True)
 
     # ============================================================
-    # 業種別BPランキング（全業種、棒の色=RS Rating）
+    # 業種別BPランキング（Full_Resultsから全業種、棒の色=RS Rating）
     # ============================================================
     st.subheader("業種別BPランキング")
 
-    # 全業種のデータを使う（フィルタに関係なく全業種表示）
-    df_bp_ranking = df_industry.copy()
+    df_bp_ranking = df_all_industry.copy()
     df_bp_ranking = df_bp_ranking.sort_values('Buy_Pressure', ascending=True)
 
     fig2 = px.bar(
