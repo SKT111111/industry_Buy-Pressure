@@ -423,7 +423,6 @@ with tab0:
         industry = html.escape(str(row['業種']))
         rs = f"{row['RS Rating']:.1f}"
         bp_val = f"{bp:.3f}"
-        # チェックタブではプレフィックス付きステータスから番号を除去して表示
         status_raw = str(row['ステータス'])
         status_display = re.sub(r'^\d+[a-z]?\s+', '', status_raw)
         status = html.escape(status_display)
@@ -548,16 +547,16 @@ with tab3:
         },
     )
 
-    # BUY基準ライン（0.550）を縦の点線で追加
+    # BUY基準ライン（0.550）を縦の黒い点線で追加
     fig2.add_vline(
         x=0.550,
         line_dash="dot",
-        line_color="white",
+        line_color="black",
         line_width=2,
         annotation_text="BUY (0.550)",
         annotation_position="top",
         annotation_font_size=12,
-        annotation_font_color="white",
+        annotation_font_color="black",
     )
 
     fig2.update_layout(
