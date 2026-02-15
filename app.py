@@ -74,6 +74,17 @@ def get_buy_pressure_status_display(buy_pressure):
         return "➖ NEUTRAL"
 
 
+# RS Rating用カスタムカラースケール（0〜100）
+# 0=赤、40=オレンジ、79=黄色、80=黄緑、100=濃い緑
+CUSTOM_RS_COLORSCALE = [
+    [0.0, "#ff0000"],
+    [0.4, "#ff8c00"],
+    [0.79, "#ffff00"],
+    [0.80, "#9acd32"],
+    [1.0, "#006400"],
+]
+
+
 # ============================================================
 # 最新ファイル自動検出
 # ============================================================
@@ -564,7 +575,8 @@ with tab3:
             y='Industry',
             orientation='h',
             color='RS_Rating',
-            color_continuous_scale='RdYlGn',
+            color_continuous_scale=CUSTOM_RS_COLORSCALE,
+            range_color=[0, 100],
             labels={
                 'Buy_Pressure': 'Buy Pressure',
                 'Industry': '業種',
