@@ -547,6 +547,19 @@ with tab3:
             'RS_Rating': 'RS Rating',
         },
     )
+
+    # BUY基準ライン（0.550）を縦の点線で追加
+    fig2.add_vline(
+        x=0.550,
+        line_dash="dot",
+        line_color="white",
+        line_width=2,
+        annotation_text="BUY (0.550)",
+        annotation_position="top",
+        annotation_font_size=12,
+        annotation_font_color="white",
+    )
+
     fig2.update_layout(
         height=max(len(df_bp_ranking) * 28, 600),
         yaxis=dict(dtick=1),
