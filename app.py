@@ -554,7 +554,9 @@ with tab3:
             continue
 
         sector_avg = df_sector['Buy_Pressure'].mean()
-        st.markdown(f"#### 📂 {sector}（平均BP: {sector_avg:.3f}）")
+        rs80_count = len(df_sector[df_sector['RS_Rating'] >= 80])
+        total_count = len(df_sector)
+        st.markdown(f"#### 📂 {sector}（平均BP: {sector_avg:.3f}　RS≧80: {rs80_count}/{total_count}）")
 
         fig_sector = px.bar(
             df_sector,
