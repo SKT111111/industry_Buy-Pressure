@@ -200,12 +200,21 @@ def load_data():
         'Buy_Pressure', 'Company Name'
     ]].copy()
 
-    return df_industry, df_all_industry, df_screening_filtered, data_date
+    # --- 業種→セクターのマッピングを作成 ---
+    industry_sector_map = {}
+    if 'Sector' in df_screening.columns and 'Industry' in df_screening.columns:
+        sector_df = df_screening[['Industry', 'Sector']].dropna().drop_duplicates()
+        # 業種ごとに最頻のセクターを採用（安全策）
+        for industry in sector_df['Industry'].unique():
+            sectors = sector_df[sector_df['Industry'] == industry]['Sector']
+            industry_sector_map[industry] = sectors.mode().iloc[0] if len(sectors) > 0 else 'Unknown'
+
+    return df_industry, df_all_industry, df_screening_filtered, industry_sector_map, data_date
 
 
 # データ読み込み
 try:
-    df_industry, df_all_industry, df_screening, data_date = load_data()
+    df_industry, df_all_industry, df_screening, industry_sector_map, data_date = load_data()
     st.success(f"✅ データ読み込み成功: {len(df_industry)} 業種 (条件通過), {len(df_all_industry)} 業種 (全体), {len(df_screening)} 銘柄")
     st.caption(f"📅 データ日付: **{data_date}**")
 except Exception as e:
@@ -525,46 +534,62 @@ with tab3:
     st.plotly_chart(fig, use_container_width=True)
 
     # ============================================================
-    # 業種別BPランキング（Full_Resultsから全業種、棒の色=RS Rating）
+    # 業種別BPランキング（セクターごとにブロック分け）
     # ============================================================
     st.subheader("業種別BPランキング")
 
+    # 全業種データにセクター情報を付与
     df_bp_ranking = df_all_industry.copy()
-    df_bp_ranking = df_bp_ranking.sort_values('Buy_Pressure', ascending=True)
+    df_bp_ranking['Sector'] = df_bp_ranking['Industry'].map(industry_sector_map).fillna('Unknown')
 
-    fig2 = px.bar(
-        df_bp_ranking,
-        x='Buy_Pressure',
-        y='Industry',
-        orientation='h',
-        color='RS_Rating',
-        color_continuous_scale='RdYlGn',
-        title='業種別BPランキング（色: RS Rating）',
-        labels={
-            'Buy_Pressure': 'Buy Pressure',
-            'Industry': '業種',
-            'RS_Rating': 'RS Rating',
-        },
-    )
+    # セクターごとの平均BPで降順ソート（BP高いセクターが上に来る）
+    sector_avg_bp = df_bp_ranking.groupby('Sector')['Buy_Pressure'].mean().sort_values(ascending=False)
+    sorted_sectors = sector_avg_bp.index.tolist()
 
-    # BUY基準ライン（0.550）を縦の黒い点線で追加
-    fig2.add_vline(
-        x=0.550,
-        line_dash="dot",
-        line_color="black",
-        line_width=2,
-        annotation_text="BUY (0.550)",
-        annotation_position="top",
-        annotation_font_size=12,
-        annotation_font_color="black",
-    )
+    for sector in sorted_sectors:
+        df_sector = df_bp_ranking[df_bp_ranking['Sector'] == sector].copy()
+        df_sector = df_sector.sort_values('Buy_Pressure', ascending=True)
 
-    fig2.update_layout(
-        height=max(len(df_bp_ranking) * 28, 600),
-        yaxis=dict(dtick=1),
-        coloraxis_colorbar=dict(title='RS Rating'),
-    )
-    st.plotly_chart(fig2, use_container_width=True)
+        if len(df_sector) == 0:
+            continue
+
+        sector_avg = df_sector['Buy_Pressure'].mean()
+        st.markdown(f"#### 📂 {sector}（平均BP: {sector_avg:.3f}）")
+
+        fig_sector = px.bar(
+            df_sector,
+            x='Buy_Pressure',
+            y='Industry',
+            orientation='h',
+            color='RS_Rating',
+            color_continuous_scale='RdYlGn',
+            labels={
+                'Buy_Pressure': 'Buy Pressure',
+                'Industry': '業種',
+                'RS_Rating': 'RS Rating',
+            },
+        )
+
+        # BUY基準ライン（0.550）を縦の黒い点線で追加
+        fig_sector.add_vline(
+            x=0.550,
+            line_dash="dot",
+            line_color="black",
+            line_width=2,
+            annotation_text="BUY (0.550)",
+            annotation_position="top",
+            annotation_font_size=11,
+            annotation_font_color="black",
+        )
+
+        fig_sector.update_layout(
+            height=max(len(df_sector) * 30 + 80, 150),
+            yaxis=dict(dtick=1),
+            coloraxis_colorbar=dict(title='RS Rating'),
+            margin=dict(t=40, b=20),
+            showlegend=False,
+        )
+        st.plotly_chart(fig_sector, use_container_width=True)
 
 
 # ============================================================
