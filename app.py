@@ -204,7 +204,6 @@ def load_data():
     industry_sector_map = {}
     if 'Sector' in df_screening.columns and 'Industry' in df_screening.columns:
         sector_df = df_screening[['Industry', 'Sector']].dropna().drop_duplicates()
-        # 業種ごとに最頻のセクターを採用（安全策）
         for industry in sector_df['Industry'].unique():
             sectors = sector_df[sector_df['Industry'] == industry]['Sector']
             industry_sector_map[industry] = sectors.mode().iloc[0] if len(sectors) > 0 else 'Unknown'
@@ -534,7 +533,7 @@ with tab3:
     st.plotly_chart(fig, use_container_width=True)
 
     # ============================================================
-    # 業種別BPランキング（セクターごとにブロック分け）
+    # 業種別BPランキング（セクターごとにブロック分け、セクター内はRS順）
     # ============================================================
     st.subheader("業種別BPランキング")
 
@@ -548,7 +547,8 @@ with tab3:
 
     for sector in sorted_sectors:
         df_sector = df_bp_ranking[df_bp_ranking['Sector'] == sector].copy()
-        df_sector = df_sector.sort_values('Buy_Pressure', ascending=True)
+        # セクター内はRS Rating順（上がRS高い）
+        df_sector = df_sector.sort_values('RS_Rating', ascending=True)
 
         if len(df_sector) == 0:
             continue
