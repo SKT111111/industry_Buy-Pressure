@@ -330,7 +330,10 @@ def get_colored_symbols_html_with_fs(industry, ts, fs, df_screening_disp):
         symbol = html.escape(str(stock['Symbol']))
         bp = stock['Buy_Pressure']
         color = get_color_from_buy_pressure(bp)
-        colored_spans.append(f'<span style="color:{color}; font-weight:bold;">{symbol}</span>')
+        # data-symbol 属性を各 span に付与（検索用）
+        colored_spans.append(
+            f'<span data-symbol="{symbol}" style="color:{color}; font-weight:bold;">{symbol}</span>'
+        )
         plain_symbols.append(symbol)
     return ', '.join(colored_spans), ', '.join(plain_symbols)
 
@@ -428,7 +431,7 @@ def render_check_tab(df_check, df_screening_disp, table_id_suffix=""):
 
 
 # ============================================================
-# チェック②タブ用（TS × FS 細分化 ＋ 縦横スクロール・広々表示）
+# チェック②タブ用（TS × FS 細分化 ＋ 縦横スクロール ＋ 銘柄検索）
 # ============================================================
 def render_check_tab_with_fs(df_check, df_screening_disp):
     st.header("Buy Pressure（TS × FS 細分化）")
@@ -449,7 +452,6 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
 
     num_rows = len(df_check)
 
-    # 固定列の幅と left 位置
     col_widths = [200, 85, 110, 130]
     left_positions = []
     cumulative = 0
@@ -469,7 +471,6 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
         10: "#3a2a1b",
     }
 
-    # 上段ヘッダーの高さ（sticky の top 計算用）
     header_row_h = 38
 
     style_css = f"""
@@ -480,9 +481,63 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
         height: 100%;
         overflow: hidden;
     }}
+    /* ---- 検索バー ---- */
+    .search-bar {{
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background-color: #0e1117;
+        padding: 10px 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-bottom: 2px solid #444;
+    }}
+    .search-bar input {{
+        background-color: #1a1d24;
+        color: #fafafa;
+        border: 1px solid #555;
+        border-radius: 6px;
+        padding: 8px 14px;
+        font-size: 14px;
+        width: 260px;
+        outline: none;
+    }}
+    .search-bar input:focus {{
+        border-color: #00c853;
+        box-shadow: 0 0 6px rgba(0,200,83,0.4);
+    }}
+    .search-bar input::placeholder {{
+        color: #888;
+    }}
+    .search-bar button {{
+        background-color: #00c853;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 8px 18px;
+        font-size: 14px;
+        font-weight: bold;
+        cursor: pointer;
+    }}
+    .search-bar button:hover {{
+        background-color: #00e676;
+    }}
+    .search-bar .clear-btn {{
+        background-color: #555;
+    }}
+    .search-bar .clear-btn:hover {{
+        background-color: #777;
+    }}
+    .search-bar .result-text {{
+        color: #aaa;
+        font-size: 13px;
+        margin-left: 8px;
+    }}
+    /* ---- スクロールコンテナ ---- */
     .fs-scroll-wrapper {{
         overflow: auto;
-        height: calc(100vh - 8px);
+        height: calc(100vh - 60px);
         border: 1px solid #444;
     }}
     #{tid} {{
@@ -499,7 +554,6 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
         white-space: nowrap;
         line-height: 1.6;
     }}
-    /* ヘッダー共通 */
     #{tid} thead th {{
         position: sticky;
         z-index: 3;
@@ -511,7 +565,6 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
     #{tid} thead tr:nth-child(2) th {{
         top: {header_row_h}px;
     }}
-    /* 固定列 */
     #{tid} .sticky-col {{
         position: sticky;
         z-index: 2;
@@ -526,15 +579,29 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
     #{tid} .sticky-col-2 {{ left: {left_positions[2]}px; min-width: {col_widths[2]}px; max-width: {col_widths[2]}px; text-align: right; }}
     #{tid} .sticky-col-3 {{ left: {left_positions[3]}px; min-width: {col_widths[3]}px; max-width: {col_widths[3]}px;
                             border-right: 3px solid #888; }}
-    /* データ列 */
     #{tid} td.data-cell {{
         min-width: 100px;
     }}
-    /* hover */
     #{tid} tbody tr:hover td {{ background-color: #1a1d24; }}
     #{tid} tbody tr:hover .sticky-col {{ background-color: #1a1d24; }}
     .copyable-fs {{ cursor: pointer; }}
     .copyable-fs:hover {{ background-color: #2a2d34 !important; }}
+    /* ---- ハイライト ---- */
+    #{tid} td.search-hit {{
+        background-color: rgba(0, 200, 83, 0.18) !important;
+        box-shadow: inset 0 0 0 2px #00c853;
+    }}
+    #{tid} td.search-hit .search-match {{
+        background-color: #00c853;
+        color: #000;
+        border-radius: 3px;
+        padding: 1px 4px;
+        animation: pulse-glow 1.2s ease-in-out 3;
+    }}
+    @keyframes pulse-glow {{
+        0%, 100% {{ box-shadow: 0 0 4px #00c853; }}
+        50% {{ box-shadow: 0 0 16px #00e676, 0 0 30px rgba(0,230,118,0.4); }}
+    }}
     #{toast_id} {{
         position: fixed; top: 20px; right: 20px; background-color: #00c853; color: white;
         padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: bold;
@@ -544,14 +611,26 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
     </style>
     """
 
+    # ---- HTML 組み立て ----
     table_html = style_css
     table_html += f'<div id="{toast_id}" class="copy-toast">📋 Copied!</div>'
-    table_html += '<div class="fs-scroll-wrapper">'
+
+    # 検索バー
+    table_html += """
+    <div class="search-bar">
+        <input type="text" id="symbol-search" placeholder="🔍 銘柄シンボルを入力 (例: AAPL)" 
+               onkeydown="if(event.key==='Enter') searchSymbol();" />
+        <button onclick="searchSymbol()">検索</button>
+        <button class="clear-btn" onclick="clearSearch()">クリア</button>
+        <span id="search-result" class="result-text"></span>
+    </div>
+    """
+
+    table_html += '<div class="fs-scroll-wrapper" id="fs-scroll-wrapper">'
     table_html += f'<table id="{tid}">'
 
-    # ===== THEAD =====
+    # THEAD
     table_html += "<thead>"
-    # 上段
     table_html += "<tr>"
     for i, label in enumerate(["業種", "RS Rating", "Buy Pressure", "ステータス"]):
         table_html += f'<th rowspan="2" class="sticky-col sticky-col-{i}">{label}</th>'
@@ -560,7 +639,6 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
         bg = ts_header_colors.get(ts, "#262730")
         table_html += f'<th colspan="{colspan}" style="background-color:{bg}; text-align:center; font-size:14px;">TS {ts}</th>'
     table_html += "</tr>"
-    # 下段
     table_html += "<tr>"
     for ts in ts_values:
         bg = ts_header_colors.get(ts, "#262730")
@@ -569,7 +647,7 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
     table_html += "</tr>"
     table_html += "</thead>"
 
-    # ===== TBODY =====
+    # TBODY
     table_html += "<tbody>"
     for _, row in df_check.iterrows():
         bp = row['Buy Pressure']
@@ -605,6 +683,7 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
 
     table_html += "</tbody></table></div>"
 
+    # ---- JavaScript ----
     table_html += f"""
     <script>
     function {func_name}(el, text) {{
@@ -615,15 +694,93 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
             setTimeout(function() {{ toast.classList.remove('show'); el.style.backgroundColor = ''; }}, 1500);
         }});
     }}
+
+    function clearSearch() {{
+        // 入力をクリア
+        document.getElementById('symbol-search').value = '';
+        document.getElementById('search-result').textContent = '';
+        // ハイライトを全解除
+        var table = document.getElementById('{tid}');
+        var hitCells = table.querySelectorAll('td.search-hit');
+        hitCells.forEach(function(td) {{
+            td.classList.remove('search-hit');
+            // search-match クラスを外して元に戻す
+            var matchSpans = td.querySelectorAll('.search-match');
+            matchSpans.forEach(function(sp) {{
+                sp.classList.remove('search-match');
+            }});
+        }});
+    }}
+
+    function searchSymbol() {{
+        var query = document.getElementById('symbol-search').value.trim().toUpperCase();
+        var resultEl = document.getElementById('search-result');
+        var table = document.getElementById('{tid}');
+        var wrapper = document.getElementById('fs-scroll-wrapper');
+
+        // 前回のハイライトをクリア
+        clearSearch();
+        document.getElementById('symbol-search').value = query;
+
+        if (!query) {{
+            resultEl.textContent = '';
+            return;
+        }}
+
+        // 複数キーワード対応（カンマ or スペース区切り）
+        var keywords = query.split(/[,\\s]+/).filter(function(k) {{ return k.length > 0; }});
+
+        var hitCount = 0;
+        var firstHit = null;
+
+        // data-symbol 属性を持つ全 span を走査
+        var allSpans = table.querySelectorAll('td.data-cell span[data-symbol]');
+        allSpans.forEach(function(span) {{
+            var sym = span.getAttribute('data-symbol').toUpperCase();
+            var matched = false;
+            for (var i = 0; i < keywords.length; i++) {{
+                if (sym === keywords[i]) {{
+                    matched = true;
+                    break;
+                }}
+            }}
+            if (matched) {{
+                span.classList.add('search-match');
+                var parentTd = span.closest('td');
+                if (parentTd && !parentTd.classList.contains('search-hit')) {{
+                    parentTd.classList.add('search-hit');
+                    hitCount++;
+                    if (!firstHit) firstHit = parentTd;
+                }}
+            }}
+        }});
+
+        if (hitCount > 0) {{
+            resultEl.textContent = '✅ ' + hitCount + ' 件ヒット';
+            resultEl.style.color = '#00c853';
+            // 最初のヒットセルまでスクロール
+            if (firstHit && wrapper) {{
+                var wrapperRect = wrapper.getBoundingClientRect();
+                var cellRect = firstHit.getBoundingClientRect();
+                wrapper.scrollTo({{
+                    top: wrapper.scrollTop + (cellRect.top - wrapperRect.top) - 100,
+                    left: wrapper.scrollLeft + (cellRect.left - wrapperRect.left) - 250,
+                    behavior: 'smooth'
+                }});
+            }}
+        }} else {{
+            resultEl.textContent = '❌ 該当なし';
+            resultEl.style.color = '#ff5252';
+        }}
+    }}
     </script>
     """
 
-    # iframe 高さ: 行数×行高さで計算し、上限を大きく確保
     row_height = 42
     header_height = 90
+    search_bar_height = 60
     padding = 20
-    calculated = header_height + num_rows * row_height + padding
-    # 上限を 2000px に拡大（それ以上はスクロール内で対応）
+    calculated = search_bar_height + header_height + num_rows * row_height + padding
     iframe_height = min(calculated, 2000)
 
     st.components.v1.html(table_html, height=iframe_height, scrolling=True)
