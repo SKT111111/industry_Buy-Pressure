@@ -23,7 +23,6 @@ st.markdown("---")
 
 # Buy Pressure に応じた色を返す関数（緑→黄→赤のグラデーション）
 def get_color_from_buy_pressure(buy_pressure):
-    """Buy Pressureに基づいて色を返す（0=赤、0.5=黄、1=緑）"""
     if pd.isna(buy_pressure):
         return "#808080"
     normalized = max(0.0, min(1.0, buy_pressure))
@@ -40,9 +39,7 @@ def get_color_from_buy_pressure(buy_pressure):
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-# Buy Pressure のステータス判定関数（ソート用プレフィックス付き）
 def get_buy_pressure_status(buy_pressure):
-    """Buy Pressureに基づいてステータスを返す（先頭にソート順番号付き）"""
     if buy_pressure > 0.667:
         return "3 🔥 EXTREME"
     elif buy_pressure > 0.60:
@@ -57,9 +54,7 @@ def get_buy_pressure_status(buy_pressure):
         return "0c ➖ NEUTRAL"
 
 
-# チェックタブ等で番号なし表示用
 def get_buy_pressure_status_display(buy_pressure):
-    """Buy Pressureに基づいてステータスを返す（表示用・番号なし）"""
     if buy_pressure > 0.667:
         return "🔥 EXTREME"
     elif buy_pressure > 0.60:
@@ -74,7 +69,6 @@ def get_buy_pressure_status_display(buy_pressure):
         return "➖ NEUTRAL"
 
 
-# RS Rating用カスタムカラースケール（0〜100）
 CUSTOM_RS_COLORSCALE = [
     [0.0, "#ff0000"],
     [0.4, "#ff8c00"],
@@ -84,32 +78,24 @@ CUSTOM_RS_COLORSCALE = [
 ]
 
 
-# ============================================================
-# 最新ファイル自動検出
-# ============================================================
 def find_latest_file(directory, prefix):
     pattern = os.path.join(directory, f"{prefix}*.xlsx")
     matched_files = glob.glob(pattern)
-
     if not matched_files:
         raise FileNotFoundError(
             f"'{directory}/' 内に '{prefix}*.xlsx' に一致するファイルが見つかりません。"
         )
-
     date_pattern = re.compile(r'(\d{8}_\d{6})\.xlsx$')
-
     files_with_dates = []
     for filepath in matched_files:
         filename = os.path.basename(filepath)
         match = date_pattern.search(filename)
         if match:
             files_with_dates.append((filepath, match.group(1)))
-
     if not files_with_dates:
         raise FileNotFoundError(
             f"'{directory}/' 内に日付パターン(YYYYMMDD_HHMMSS)を含むファイルが見つかりません。"
         )
-
     files_with_dates.sort(key=lambda x: x[1], reverse=True)
     return files_with_dates[0][0]
 
@@ -123,29 +109,20 @@ def get_data_date_from_filename(filename):
     return "不明"
 
 
-# ============================================================
-# データ読み込み関数
-# ============================================================
 @st.cache_data
 def load_data():
     DATA_DIR = "data"
-
     file1_path = find_latest_file(DATA_DIR, "industry_etf_multicondition_")
     file2_path = find_latest_file(DATA_DIR, "integrated_screening_")
-
     file1_name = os.path.basename(file1_path)
-    file2_name = os.path.basename(file2_path)
-
     data_date = get_data_date_from_filename(file1_name)
 
     xl = pd.ExcelFile(file1_path)
     sheet_names = xl.sheet_names
-
     df_industry = None
 
     if 'Multi_Condition_Passed' in sheet_names:
         df_raw = pd.read_excel(file1_path, sheet_name='Multi_Condition_Passed')
-
         if 'Industry' in df_raw.columns:
             df_industry = df_raw.copy()
         else:
@@ -153,9 +130,7 @@ def load_data():
             if len(industry_matches) > 0:
                 header_row = industry_matches.index[0]
                 df_industry = pd.read_excel(
-                    file1_path,
-                    sheet_name='Multi_Condition_Passed',
-                    skiprows=header_row
+                    file1_path, sheet_name='Multi_Condition_Passed', skiprows=header_row
                 )
                 df_industry.columns = df_industry.iloc[0]
                 df_industry = df_industry[1:].reset_index(drop=True)
@@ -165,10 +140,7 @@ def load_data():
             df_industry = df_raw.copy()
 
     if df_industry is None:
-        raise ValueError(
-            f"'{file1_name}' から Industry データを読み取れませんでした。"
-            f" シート名: {sheet_names}"
-        )
+        raise ValueError(f"'{file1_name}' から Industry データを読み取れませんでした。 シート名: {sheet_names}")
 
     df_industry = df_industry[['Industry', 'RS_Rating', 'Buy_Pressure']].copy()
     df_industry['RS_Rating'] = pd.to_numeric(df_industry['RS_Rating'], errors='coerce')
@@ -187,15 +159,13 @@ def load_data():
             if 'RS_Rating' in df_all_industry.columns:
                 df_all_industry['RS_Rating'] = pd.to_numeric(df_all_industry['RS_Rating'], errors='coerce')
             df_all_industry = df_all_industry.dropna(subset=['Buy_Pressure'])
-
     if df_all_industry is None:
         df_all_industry = df_industry.copy()
 
     df_screening = pd.read_excel(file2_path, sheet_name='Screening_Results')
     df_screening_filtered = df_screening[df_screening['Technical_Score'] >= 10].copy()
     df_screening_filtered = df_screening_filtered[[
-        'Symbol', 'Industry', 'Technical_Score', 'Screening_Score',
-        'Buy_Pressure', 'Company Name'
+        'Symbol', 'Industry', 'Technical_Score', 'Screening_Score', 'Buy_Pressure', 'Company Name'
     ]].copy()
 
     industry_sector_map = {}
@@ -208,7 +178,6 @@ def load_data():
     return df_industry, df_all_industry, df_screening_filtered, industry_sector_map, data_date
 
 
-# データ読み込み
 try:
     df_industry, df_all_industry, df_screening, industry_sector_map, data_date = load_data()
     st.success(f"✅ データ読み込み成功: {len(df_industry)} 業種 (条件通過), {len(df_all_industry)} 業種 (全体), {len(df_screening)} 銘柄")
@@ -218,32 +187,18 @@ except Exception as e:
     st.stop()
 
 
-# サイドバー
 with st.sidebar:
     st.header("📊 フィルター設定")
-
     min_tech_score = st.slider(
-        "テクニカルスコア最小値",
-        min_value=10,
-        max_value=int(df_screening['Technical_Score'].max()),
-        value=10,
-        step=1
+        "テクニカルスコア最小値", min_value=10,
+        max_value=int(df_screening['Technical_Score'].max()), value=10, step=1
     )
-
     max_stocks_per_industry = st.slider(
-        "業種ごとの最大表示銘柄数",
-        min_value=5,
-        max_value=30,
-        value=15,
-        step=5
+        "業種ごとの最大表示銘柄数", min_value=5, max_value=30, value=15, step=5
     )
-
     selected_industries = st.multiselect(
-        "業種選択（空白=全て）",
-        options=sorted(df_industry['Industry'].unique()),
-        default=None
+        "業種選択（空白=全て）", options=sorted(df_industry['Industry'].unique()), default=None
     )
-
     st.markdown("---")
     st.markdown("### 🎨 カラーコード")
     st.markdown("- 🟢 **緑**: Buy Pressure 高い")
@@ -251,10 +206,7 @@ with st.sidebar:
     st.markdown("- 🔴 **赤**: Buy Pressure 低い")
 
 
-# フィルタ適用
 df_screening_display = df_screening[df_screening['Technical_Score'] >= min_tech_score].copy()
-
-# ファンダメンタルスコア列を追加
 df_screening_display['Fundamental_Score'] = (
     df_screening_display['Screening_Score'] - df_screening_display['Technical_Score']
 )
@@ -268,7 +220,6 @@ else:
     df_industry_display = df_industry.copy()
 
 
-# 業種別サマリーデータを作成
 def create_summary_data(df_screening_disp, df_industry_disp):
     industry_summary = []
     for industry in df_industry_disp['Industry']:
@@ -291,13 +242,9 @@ def create_summary_data(df_screening_disp, df_industry_disp):
 
 df_summary = create_summary_data(df_screening_display, df_industry_display)
 
-# タブ作成
 tab0, tab0b, tab1, tab2, tab3 = st.tabs([
-    "✅ チェック",
-    "✅ チェック②",
-    "📈 テクニカルスコア別マトリックス",
-    "🎯 スクリーニングスコア別マトリックス",
-    "📊 業種サマリー"
+    "✅ チェック", "✅ チェック②",
+    "📈 テクニカルスコア別マトリックス", "🎯 スクリーニングスコア別マトリックス", "📊 業種サマリー"
 ])
 
 
@@ -317,19 +264,15 @@ def style_symbol(row):
 
 def create_industry_table(df_screening_disp, df_industry_disp, sort_by='Technical_Score'):
     df_industry_sorted = df_industry_disp.sort_values('RS_Rating', ascending=False)
-
     for _, industry_row in df_industry_sorted.iterrows():
         industry_name = industry_row['Industry']
         rs_rating = industry_row['RS_Rating']
         buy_pressure = industry_row['Buy_Pressure']
-
         stocks_in_industry = df_screening_disp[
             df_screening_disp['Industry'] == industry_name
         ].sort_values(sort_by, ascending=False).head(max_stocks_per_industry)
-
         if len(stocks_in_industry) == 0:
             continue
-
         st.markdown(f"### {industry_name}")
         col1, col2, col3, col4 = st.columns([3, 1, 1, 2])
         with col1:
@@ -341,7 +284,6 @@ def create_industry_table(df_screening_disp, df_industry_disp, sort_by='Technica
         with col4:
             status = get_buy_pressure_status_display(buy_pressure)
             st.markdown(f"**{status}**")
-
         display_df = stocks_in_industry[
             ['Symbol', 'Company Name', 'Technical_Score', 'Screening_Score', 'Buy_Pressure']
         ].copy()
@@ -352,13 +294,8 @@ def create_industry_table(df_screening_disp, df_industry_disp, sort_by='Technica
         display_df['Company Name'] = display_df['Company Name'].apply(
             lambda x: str(x)[:40] if pd.notna(x) else ''
         )
-
         styled_df = display_df.style.apply(style_symbol, axis=1)
-        st.dataframe(
-            styled_df,
-            use_container_width=True,
-            height=min(len(display_df) * 40 + 50, 650)
-        )
+        st.dataframe(styled_df, use_container_width=True, height=min(len(display_df) * 40 + 50, 650))
         st.markdown("---")
 
 
@@ -367,10 +304,8 @@ def get_colored_symbols_html(industry, score, df_screening_disp):
         (df_screening_disp['Industry'] == industry) &
         (df_screening_disp['Technical_Score'] == score)
     ].sort_values('Buy_Pressure', ascending=False)
-
     if len(stocks) == 0:
         return '', ''
-
     colored_spans = []
     plain_symbols = []
     for _, stock in stocks.iterrows():
@@ -379,23 +314,17 @@ def get_colored_symbols_html(industry, score, df_screening_disp):
         color = get_color_from_buy_pressure(bp)
         colored_spans.append(f'<span style="color:{color}; font-weight:bold;">{symbol}</span>')
         plain_symbols.append(symbol)
-
-    display_html = ', '.join(colored_spans)
-    copy_text = ', '.join(plain_symbols)
-    return display_html, copy_text
+    return ', '.join(colored_spans), ', '.join(plain_symbols)
 
 
 def get_colored_symbols_html_with_fs(industry, ts, fs, df_screening_disp):
-    """業種・TS・FSに該当する銘柄を色付きHTMLで返す"""
     stocks = df_screening_disp[
         (df_screening_disp['Industry'] == industry) &
         (df_screening_disp['Technical_Score'] == ts) &
         (df_screening_disp['Fundamental_Score'] == fs)
     ].sort_values('Buy_Pressure', ascending=False)
-
     if len(stocks) == 0:
         return '', ''
-
     colored_spans = []
     plain_symbols = []
     for _, stock in stocks.iterrows():
@@ -404,18 +333,14 @@ def get_colored_symbols_html_with_fs(industry, ts, fs, df_screening_disp):
         color = get_color_from_buy_pressure(bp)
         colored_spans.append(f'<span style="color:{color}; font-weight:bold;">{symbol}</span>')
         plain_symbols.append(symbol)
-
-    display_html = ', '.join(colored_spans)
-    copy_text = ', '.join(plain_symbols)
-    return display_html, copy_text
+    return ', '.join(colored_spans), ', '.join(plain_symbols)
 
 
 # ============================================================
-# チェックタブ用 HTML 生成関数（タブ0 用：従来版）
+# チェックタブ用（従来版）
 # ============================================================
 def render_check_tab(df_check, df_screening_disp, table_id_suffix=""):
     st.header("Buy Pressure")
-
     max_symbols_per_row = []
     for _, row in df_check.iterrows():
         row_max = 0
@@ -439,7 +364,9 @@ def render_check_tab(df_check, df_screening_disp, table_id_suffix=""):
     #{tid} tr:hover td {{ background-color: #1a1d24; }}
     .copyable{table_id_suffix} {{ cursor: pointer; position: relative; }}
     .copyable{table_id_suffix}:hover {{ background-color: #2a2d34 !important; }}
-    #{toast_id} {{ position: fixed; top: 20px; right: 20px; background-color: #00c853; color: white; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: bold; z-index: 9999; opacity: 0; transition: opacity 0.3s; pointer-events: none; }}
+    #{toast_id} {{ position: fixed; top: 20px; right: 20px; background-color: #00c853; color: white;
+                   padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: bold;
+                   z-index: 9999; opacity: 0; transition: opacity 0.3s; pointer-events: none; }}
     #{toast_id}.show {{ opacity: 1; }}
     </style>
     <div id="{toast_id}" class="copy-toast">📋 Copied!</div>
@@ -450,7 +377,6 @@ def render_check_tab(df_check, df_screening_disp, table_id_suffix=""):
         <th>TS 14</th><th>TS 13</th><th>TS 12</th><th>TS 11</th><th>TS 10</th>
     </tr></thead><tbody>
     """
-
     for idx, row in df_check.iterrows():
         bp = row['Buy Pressure']
         bp_color = get_color_from_buy_pressure(bp)
@@ -460,15 +386,11 @@ def render_check_tab(df_check, df_screening_disp, table_id_suffix=""):
         status_raw = str(row['ステータス'])
         status_display = re.sub(r'^\d+[a-z]?\s+', '', status_raw)
         status = html.escape(status_display)
-
         table_html += f'<tr><td>{industry}</td><td>{rs}</td>'
         table_html += f'<td style="color: {bp_color}; font-weight: bold;">{bp_val}</td>'
         table_html += f'<td>{status}</td>'
-
         for score in [14, 13, 12, 11, 10]:
-            display_html, copy_text = get_colored_symbols_html(
-                row['業種'], score, df_screening_disp
-            )
+            display_html, copy_text = get_colored_symbols_html(row['業種'], score, df_screening_disp)
             if display_html:
                 escaped_copy = html.escape(copy_text).replace("'", "\\'")
                 table_html += (
@@ -478,7 +400,6 @@ def render_check_tab(df_check, df_screening_disp, table_id_suffix=""):
                 )
             else:
                 table_html += '<td></td>'
-
         table_html += "</tr>"
 
     table_html += f"""
@@ -494,7 +415,6 @@ def render_check_tab(df_check, df_screening_disp, table_id_suffix=""):
     }}
     </script>
     """
-
     total_height = 80
     for sym_count in max_symbols_per_row:
         if sym_count <= 3:
@@ -505,20 +425,17 @@ def render_check_tab(df_check, df_screening_disp, table_id_suffix=""):
             total_height += 75
         else:
             total_height += 95
-
     st.components.v1.html(table_html, height=total_height, scrolling=False)
 
 
 # ============================================================
-# チェック②タブ用 HTML 生成関数（TS × FS 細分化版）
+# チェック②タブ用（TS × FS 細分化 ＋ 縦横スクロール対応）
 # ============================================================
 def render_check_tab_with_fs(df_check, df_screening_disp):
-    """チェック②: TS 列の中をさらに FS（Fundamental Score）で細分化して表示"""
     st.header("Buy Pressure（TS × FS 細分化）")
 
-    # TS ごとに存在する FS 値を降順で取得
     ts_values = sorted(df_screening_disp['Technical_Score'].unique(), reverse=True)
-    ts_fs_map = {}  # {ts: [fs_desc, ...]}
+    ts_fs_map = {}
     for ts in ts_values:
         fs_vals = sorted(
             df_screening_disp[df_screening_disp['Technical_Score'] == ts]['Fundamental_Score'].unique(),
@@ -526,30 +443,26 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
         )
         ts_fs_map[ts] = [int(f) for f in fs_vals]
 
-    # 全サブカラム数（TS×FS の組み合わせ数）
-    all_sub_cols = []  # [(ts, fs), ...]
+    all_sub_cols = []
     for ts in ts_values:
         for fs in ts_fs_map[ts]:
             all_sub_cols.append((ts, fs))
 
-    # 行ごとの最大シンボル数（高さ計算用）
-    max_symbols_per_row = []
-    for _, row in df_check.iterrows():
-        row_max = 0
-        for ts, fs in all_sub_cols:
-            count = len(df_screening_disp[
-                (df_screening_disp['Industry'] == row['業種']) &
-                (df_screening_disp['Technical_Score'] == ts) &
-                (df_screening_disp['Fundamental_Score'] == fs)
-            ])
-            row_max = max(row_max, count)
-        max_symbols_per_row.append(row_max)
+    num_rows = len(df_check)
+
+    # --- 固定列の left 位置を計算 ---
+    col_widths = [180, 80, 100, 120]  # 業種, RS, BP, ステータス
+    left_positions = []
+    cumulative = 0
+    for w in col_widths:
+        left_positions.append(cumulative)
+        cumulative += w
+    fixed_total_width = cumulative  # 固定列の合計幅
 
     tid = "check-table-fs"
     toast_id = "copy-toast-fs"
     func_name = "copySymbolsFS"
 
-    # --- ヘッダー色: TS 値で背景色を変える ---
     ts_header_colors = {
         14: "#1b3a1b",
         13: "#2a4a1b",
@@ -558,52 +471,103 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
         10: "#3a2a1b",
     }
 
-    table_html = f"""
+    # --- CSS ---
+    style_css = f"""
     <style>
-    #{tid} {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
-    #{tid} th {{ background-color: #262730; color: #fafafa; padding: 6px 8px;
-                 text-align: center; border: 1px solid #444; white-space: nowrap; }}
-    #{tid} td {{ padding: 6px 8px; border: 1px solid #444;
-                 background-color: #0e1117; color: #fafafa; }}
-    #{tid} tr:hover td {{ background-color: #1a1d24; }}
-    .copyable-fs {{ cursor: pointer; position: relative; }}
+    .fs-scroll-wrapper {{
+        overflow: auto;
+        max-height: 80vh;
+        border: 1px solid #444;
+        position: relative;
+    }}
+    #{tid} {{
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 13px;
+        width: max-content;
+    }}
+    #{tid} th, #{tid} td {{
+        padding: 6px 8px;
+        border: 1px solid #444;
+        background-color: #0e1117;
+        color: #fafafa;
+        white-space: nowrap;
+    }}
+    #{tid} thead th {{
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        background-color: #262730;
+    }}
+    /* 上段ヘッダー (row1) */
+    #{tid} thead tr:first-child th {{
+        top: 0;
+    }}
+    /* 下段ヘッダー (row2) */
+    #{tid} thead tr:nth-child(2) th {{
+        top: 33px;
+    }}
+    /* 固定列 (左4列) の共通スタイル */
+    #{tid} .sticky-col {{
+        position: sticky;
+        z-index: 2;
+        background-color: #0e1117;
+    }}
+    /* ヘッダー内の固定列は z-index を最大に */
+    #{tid} thead .sticky-col {{
+        z-index: 5;
+        background-color: #262730;
+    }}
+    #{tid} .sticky-col-0 {{ left: {left_positions[0]}px; min-width: {col_widths[0]}px; max-width: {col_widths[0]}px; }}
+    #{tid} .sticky-col-1 {{ left: {left_positions[1]}px; min-width: {col_widths[1]}px; max-width: {col_widths[1]}px; }}
+    #{tid} .sticky-col-2 {{ left: {left_positions[2]}px; min-width: {col_widths[2]}px; max-width: {col_widths[2]}px; }}
+    #{tid} .sticky-col-3 {{ left: {left_positions[3]}px; min-width: {col_widths[3]}px; max-width: {col_widths[3]}px;
+                            border-right: 3px solid #888; }}
+    /* hover */
+    #{tid} tbody tr:hover td {{ background-color: #1a1d24; }}
+    #{tid} tbody tr:hover .sticky-col {{ background-color: #1a1d24; }}
+    .copyable-fs {{ cursor: pointer; }}
     .copyable-fs:hover {{ background-color: #2a2d34 !important; }}
-    #{toast_id} {{ position: fixed; top: 20px; right: 20px; background-color: #00c853;
-                   color: white; padding: 10px 20px; border-radius: 8px; font-size: 14px;
-                   font-weight: bold; z-index: 9999; opacity: 0; transition: opacity 0.3s;
-                   pointer-events: none; }}
+    #{toast_id} {{
+        position: fixed; top: 20px; right: 20px; background-color: #00c853; color: white;
+        padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: bold;
+        z-index: 9999; opacity: 0; transition: opacity 0.3s; pointer-events: none;
+    }}
     #{toast_id}.show {{ opacity: 1; }}
     </style>
-    <div id="{toast_id}" class="copy-toast">📋 Copied!</div>
-    <div style="overflow-x: auto;">
-    <table id="{tid}">
-    <thead>
     """
 
-    # --- 上段ヘッダー: 固定列 + TS グループ（colspan） ---
-    fixed_cols = 4  # 業種, RS Rating, BP, ステータス
+    # --- HTML 組み立て ---
+    table_html = style_css
+    table_html += f'<div id="{toast_id}" class="copy-toast">📋 Copied!</div>'
+    table_html += f'<div class="fs-scroll-wrapper">'
+    table_html += f'<table id="{tid}">'
+
+    # ===== THEAD =====
+    table_html += "<thead>"
+
+    # -- 上段ヘッダー --
     table_html += "<tr>"
-    table_html += f'<th rowspan="2">業種</th>'
-    table_html += f'<th rowspan="2">RS Rating</th>'
-    table_html += f'<th rowspan="2">Buy Pressure</th>'
-    table_html += f'<th rowspan="2">ステータス</th>'
+    for i, label in enumerate(["業種", "RS Rating", "Buy Pressure", "ステータス"]):
+        table_html += f'<th rowspan="2" class="sticky-col sticky-col-{i}">{label}</th>'
     for ts in ts_values:
         colspan = len(ts_fs_map[ts])
         bg = ts_header_colors.get(ts, "#262730")
-        table_html += f'<th colspan="{colspan}" style="background-color:{bg};">TS {ts}</th>'
+        table_html += f'<th colspan="{colspan}" style="background-color:{bg}; text-align:center;">TS {ts}</th>'
     table_html += "</tr>"
 
-    # --- 下段ヘッダー: FS 値 ---
+    # -- 下段ヘッダー --
     table_html += "<tr>"
     for ts in ts_values:
         bg = ts_header_colors.get(ts, "#262730")
         for fs in ts_fs_map[ts]:
-            table_html += f'<th style="background-color:{bg}; font-size:11px;">FS {fs}</th>'
+            table_html += f'<th style="background-color:{bg}; font-size:11px; text-align:center;">FS {fs}</th>'
     table_html += "</tr>"
-    table_html += "</thead><tbody>"
+    table_html += "</thead>"
 
-    # --- データ行 ---
-    for idx, row in df_check.iterrows():
+    # ===== TBODY =====
+    table_html += "<tbody>"
+    for _, row in df_check.iterrows():
         bp = row['Buy Pressure']
         bp_color = get_color_from_buy_pressure(bp)
         industry_name = str(row['業種'])
@@ -615,10 +579,10 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
         status = html.escape(status_display)
 
         table_html += "<tr>"
-        table_html += f"<td>{industry_esc}</td>"
-        table_html += f"<td>{rs}</td>"
-        table_html += f'<td style="color: {bp_color}; font-weight: bold;">{bp_val}</td>'
-        table_html += f"<td>{status}</td>"
+        table_html += f'<td class="sticky-col sticky-col-0">{industry_esc}</td>'
+        table_html += f'<td class="sticky-col sticky-col-1">{rs}</td>'
+        table_html += f'<td class="sticky-col sticky-col-2" style="color:{bp_color}; font-weight:bold;">{bp_val}</td>'
+        table_html += f'<td class="sticky-col sticky-col-3">{status}</td>'
 
         for ts, fs in all_sub_cols:
             display_html, copy_text = get_colored_symbols_html_with_fs(
@@ -633,11 +597,12 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
                 )
             else:
                 table_html += "<td></td>"
-
         table_html += "</tr>"
 
+    table_html += "</tbody></table></div>"
+
+    # --- JS ---
     table_html += f"""
-    </tbody></table></div>
     <script>
     function {func_name}(el, text) {{
         navigator.clipboard.writeText(text).then(function() {{
@@ -650,150 +615,102 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
     </script>
     """
 
-    total_height = 100  # ヘッダー 2 段分
-    for sym_count in max_symbols_per_row:
-        if sym_count <= 3:
-            total_height += 40
-        elif sym_count <= 6:
-            total_height += 55
-        elif sym_count <= 10:
-            total_height += 75
-        else:
-            total_height += 95
+    # iframe の高さ: 行数に応じて計算しつつ上限を設定
+    row_height = 38
+    header_height = 80
+    padding = 40
+    calculated = header_height + num_rows * row_height + padding
+    iframe_height = min(calculated, 820)
 
-    st.components.v1.html(table_html, height=total_height, scrolling=False)
+    st.components.v1.html(table_html, height=iframe_height, scrolling=True)
 
 
 # ============================================================
-# タブ0: チェック（従来版）
+# タブ0: チェック
 # ============================================================
 with tab0:
     df_check = df_summary[['業種', 'RS Rating', 'Buy Pressure', 'ステータス']].copy()
     render_check_tab(df_check, df_screening_display, table_id_suffix="")
 
 # ============================================================
-# タブ0b: チェック②（TS × FS 細分化版）
+# タブ0b: チェック②
 # ============================================================
 with tab0b:
     df_check2 = df_summary[['業種', 'RS Rating', 'Buy Pressure', 'ステータス']].copy()
     render_check_tab_with_fs(df_check2, df_screening_display)
 
-
 # ============================================================
-# タブ1: テクニカルスコア別
+# タブ1
 # ============================================================
 with tab1:
     st.header("テクニカルスコア別 業種×銘柄マトリックス")
     create_industry_table(df_screening_display, df_industry_display, sort_by='Technical_Score')
 
-
 # ============================================================
-# タブ2: スクリーニングスコア別
+# タブ2
 # ============================================================
 with tab2:
     st.header("スクリーニングスコア (テクニカル+ファンダメンタル) 別 業種×銘柄マトリックス")
     create_industry_table(df_screening_display, df_industry_display, sort_by='Screening_Score')
 
-
 # ============================================================
-# タブ3: 業種サマリー
+# タブ3
 # ============================================================
 with tab3:
     st.header("業種別サマリー統計")
-
     st.dataframe(
-        df_summary,
-        use_container_width=True,
-        height=600,
+        df_summary, use_container_width=True, height=600,
         column_config={
-            'ステータス': st.column_config.TextColumn(
-                'ステータス',
-                help='クリックでソート: BUY → STRONG → EXTREME',
-                width='medium',
-            ),
+            'ステータス': st.column_config.TextColumn('ステータス', help='クリックでソート', width='medium'),
         },
     )
 
     st.subheader("RS Rating vs Buy Pressure")
     fig = px.scatter(
-        df_summary,
-        x='RS Rating',
-        y='Buy Pressure',
-        size='銘柄数',
-        color='ステータス',
-        hover_data=['業種', '平均テクニカルスコア'],
-        text='業種',
-        title='業種別 RS Rating vs Buy Pressure'
+        df_summary, x='RS Rating', y='Buy Pressure', size='銘柄数', color='ステータス',
+        hover_data=['業種', '平均テクニカルスコア'], text='業種', title='業種別 RS Rating vs Buy Pressure'
     )
     fig.update_traces(textposition='top center')
     fig.update_layout(height=700, yaxis=dict(range=[0.5, 1]))
     st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("業種別BPランキング")
-
     df_bp_ranking = df_all_industry.copy()
     df_bp_ranking['Sector'] = df_bp_ranking['Industry'].map(industry_sector_map).fillna('Unknown')
-
     sector_avg_bp = df_bp_ranking.groupby('Sector')['Buy_Pressure'].mean().sort_values(ascending=False)
     sorted_sectors = sector_avg_bp.index.tolist()
 
     for sector in sorted_sectors:
         df_sector = df_bp_ranking[df_bp_ranking['Sector'] == sector].copy()
         df_sector = df_sector.sort_values('RS_Rating', ascending=True)
-
         if len(df_sector) == 0:
             continue
-
         sector_avg = df_sector['Buy_Pressure'].mean()
         rs80_count = len(df_sector[df_sector['RS_Rating'] >= 80])
         total_count = len(df_sector)
         st.markdown(f"#### 📂 {sector}（平均BP: {sector_avg:.3f}　RS≧80: {rs80_count}/{total_count}）")
-
         fig_sector = px.bar(
-            df_sector,
-            x='Buy_Pressure',
-            y='Industry',
-            orientation='h',
-            color='RS_Rating',
-            color_continuous_scale=CUSTOM_RS_COLORSCALE,
-            range_color=[0, 100],
-            labels={
-                'Buy_Pressure': 'Buy Pressure',
-                'Industry': '業種',
-                'RS_Rating': 'RS Rating',
-            },
+            df_sector, x='Buy_Pressure', y='Industry', orientation='h', color='RS_Rating',
+            color_continuous_scale=CUSTOM_RS_COLORSCALE, range_color=[0, 100],
+            labels={'Buy_Pressure': 'Buy Pressure', 'Industry': '業種', 'RS_Rating': 'RS Rating'},
         )
-
         fig_sector.add_vline(
-            x=0.550,
-            line_dash="dot",
-            line_color="black",
-            line_width=2,
-            annotation_text="BUY (0.550)",
-            annotation_position="top",
-            annotation_font_size=11,
-            annotation_font_color="black",
+            x=0.550, line_dash="dot", line_color="black", line_width=2,
+            annotation_text="BUY (0.550)", annotation_position="top",
+            annotation_font_size=11, annotation_font_color="black",
         )
-
         fig_sector.update_layout(
-            height=max(len(df_sector) * 30 + 80, 150),
-            yaxis=dict(dtick=1),
-            coloraxis_colorbar=dict(title='RS Rating'),
-            margin=dict(t=40, b=20),
-            showlegend=False,
+            height=max(len(df_sector) * 30 + 80, 150), yaxis=dict(dtick=1),
+            coloraxis_colorbar=dict(title='RS Rating'), margin=dict(t=40, b=20), showlegend=False,
         )
         st.plotly_chart(fig_sector, use_container_width=True)
-
 
 # ============================================================
 # フッター
 # ============================================================
 st.markdown("---")
 st.markdown(
-    f"""
-    <div style="text-align: center; color: gray; font-size: 12px;">
-    Industry Buy Pressure Dashboard | Data: {data_date}
-    </div>
-    """,
+    f'<div style="text-align: center; color: gray; font-size: 12px;">'
+    f'Industry Buy Pressure Dashboard | Data: {data_date}</div>',
     unsafe_allow_html=True
 )
