@@ -457,6 +457,7 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
     for w in col_widths:
         left_positions.append(cumulative)
         cumulative += w
+    frozen_total_width = cumulative  # 固定列の合計幅（px）
 
     tid = "check-table-fs"
     toast_id = "copy-toast-fs"
@@ -480,7 +481,6 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
         height: 100%;
         overflow: hidden;
     }}
-    /* ---- 検索バー ---- */
     .search-bar {{
         position: sticky;
         top: 0;
@@ -533,7 +533,6 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
         font-size: 13px;
         margin-left: 8px;
     }}
-    /* ---- スクロールコンテナ ---- */
     .fs-scroll-wrapper {{
         overflow: auto;
         height: calc(100vh - 60px);
@@ -585,7 +584,6 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
     #{tid} tbody tr:hover .sticky-col {{ background-color: #1a1d24; }}
     .copyable-fs {{ cursor: pointer; }}
     .copyable-fs:hover {{ background-color: #2a2d34 !important; }}
-    /* ---- ハイライト ---- */
     #{tid} td.search-hit {{
         background-color: rgba(0, 200, 83, 0.18) !important;
         box-shadow: inset 0 0 0 2px #00c853;
@@ -610,11 +608,9 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
     </style>
     """
 
-    # ---- HTML 組み立て ----
     table_html = style_css
     table_html += f'<div id="{toast_id}" class="copy-toast">📋 Copied!</div>'
 
-    # 検索バー
     table_html += """
     <div class="search-bar" id="search-bar-area">
         <input type="text" id="symbol-search" placeholder="🔍 銘柄シンボルを入力 (例: AAPL)"
@@ -628,7 +624,6 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
     table_html += '<div class="fs-scroll-wrapper" id="fs-scroll-wrapper">'
     table_html += f'<table id="{tid}">'
 
-    # THEAD
     table_html += "<thead>"
     table_html += "<tr>"
     for i, label in enumerate(["業種", "RS Rating", "Buy Pressure", "ステータス"]):
@@ -646,7 +641,6 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
     table_html += "</tr>"
     table_html += "</thead>"
 
-    # TBODY
     table_html += "<tbody>"
     for _, row in df_check.iterrows():
         bp = row['Buy Pressure']
@@ -682,9 +676,11 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
 
     table_html += "</tbody></table></div>"
 
-    # ---- JavaScript ----
+    # ---- JavaScript（スクロール修正版） ----
     table_html += f"""
     <script>
+    var FROZEN_WIDTH = {frozen_total_width};
+
     function {func_name}(el, text) {{
         navigator.clipboard.writeText(text).then(function() {{
             var toast = document.getElementById('{toast_id}');
@@ -694,7 +690,6 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
         }});
     }}
 
-    /* ハイライトだけ消す（入力欄はそのまま） */
     function clearHighlights() {{
         var table = document.getElementById('{tid}');
         if (!table) return;
@@ -709,17 +704,42 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
         document.getElementById('search-result').textContent = '';
     }}
 
-    /* クリアボタン用: 入力もハイライトも全部消す */
     function clearSearchAndInput() {{
         document.getElementById('symbol-search').value = '';
         clearHighlights();
+    }}
+
+    function scrollToCell(cell) {{
+        var wrapper = document.getElementById('fs-scroll-wrapper');
+        if (!wrapper || !cell) return;
+
+        var wrapperRect = wrapper.getBoundingClientRect();
+
+        /* ---------- 横スクロール ---------- */
+        /* セルの、テーブル先頭からの絶対 left を求める */
+        var cellOffsetLeft = cell.offsetLeft;
+        /* 固定列の右端より左にセルが来ないようにする */
+        /* 目標: セルの左端が固定列の右端 + 余白20px の位置に見える */
+        var targetScrollLeft = cellOffsetLeft - FROZEN_WIDTH - 20;
+        if (targetScrollLeft < 0) targetScrollLeft = 0;
+
+        /* ---------- 縦スクロール ---------- */
+        var cellRect = cell.getBoundingClientRect();
+        var headerHeight = 80;
+        var targetScrollTop = wrapper.scrollTop + (cellRect.top - wrapperRect.top) - headerHeight;
+        if (targetScrollTop < 0) targetScrollTop = 0;
+
+        wrapper.scrollTo({{
+            top: targetScrollTop,
+            left: targetScrollLeft,
+            behavior: 'smooth'
+        }});
     }}
 
     function searchSymbol() {{
         var query = document.getElementById('symbol-search').value.trim().toUpperCase();
         var resultEl = document.getElementById('search-result');
         var table = document.getElementById('{tid}');
-        var wrapper = document.getElementById('fs-scroll-wrapper');
 
         clearHighlights();
         document.getElementById('symbol-search').value = query;
@@ -758,33 +778,20 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
         if (hitCount > 0) {{
             resultEl.textContent = '✅ ' + hitCount + ' 件ヒット';
             resultEl.style.color = '#00c853';
-            if (firstHit && wrapper) {{
-                var wrapperRect = wrapper.getBoundingClientRect();
-                var cellRect = firstHit.getBoundingClientRect();
-                wrapper.scrollTo({{
-                    top: wrapper.scrollTop + (cellRect.top - wrapperRect.top) - 100,
-                    left: wrapper.scrollLeft + (cellRect.left - wrapperRect.left) - 250,
-                    behavior: 'smooth'
-                }});
-            }}
+            scrollToCell(firstHit);
         }} else {{
             resultEl.textContent = '❌ 該当なし';
             resultEl.style.color = '#ff5252';
         }}
     }}
 
-    /* ---- 表・検索バーの外をクリックしたらハイライト解除 ---- */
     document.addEventListener('click', function(e) {{
         var table = document.getElementById('{tid}');
         var searchBar = document.getElementById('search-bar-area');
         var toast = document.getElementById('{toast_id}');
-
-        /* クリック先がテーブル内 or 検索バー内 or トーストなら何もしない */
         if (table && table.contains(e.target)) return;
         if (searchBar && searchBar.contains(e.target)) return;
         if (toast && toast.contains(e.target)) return;
-
-        /* それ以外（余白など）をクリック → ハイライト解除＋入力クリア */
         clearSearchAndInput();
     }});
     </script>
@@ -801,36 +808,22 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
 
 
 # ============================================================
-# タブ0: チェック
-# ============================================================
 with tab0:
     df_check = df_summary[['業種', 'RS Rating', 'Buy Pressure', 'ステータス']].copy()
     render_check_tab(df_check, df_screening_display, table_id_suffix="")
 
-# ============================================================
-# タブ0b: チェック②
-# ============================================================
 with tab0b:
     df_check2 = df_summary[['業種', 'RS Rating', 'Buy Pressure', 'ステータス']].copy()
     render_check_tab_with_fs(df_check2, df_screening_display)
 
-# ============================================================
-# タブ1
-# ============================================================
 with tab1:
     st.header("テクニカルスコア別 業種×銘柄マトリックス")
     create_industry_table(df_screening_display, df_industry_display, sort_by='Technical_Score')
 
-# ============================================================
-# タブ2
-# ============================================================
 with tab2:
     st.header("スクリーニングスコア (テクニカル+ファンダメンタル) 別 業種×銘柄マトリックス")
     create_industry_table(df_screening_display, df_industry_display, sort_by='Screening_Score')
 
-# ============================================================
-# タブ3
-# ============================================================
 with tab3:
     st.header("業種別サマリー統計")
     st.dataframe(
@@ -880,9 +873,6 @@ with tab3:
         )
         st.plotly_chart(fig_sector, use_container_width=True)
 
-# ============================================================
-# フッター
-# ============================================================
 st.markdown("---")
 st.markdown(
     f'<div style="text-align: center; color: gray; font-size: 12px;">'
