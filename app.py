@@ -254,6 +254,11 @@ with st.sidebar:
 # フィルタ適用
 df_screening_display = df_screening[df_screening['Technical_Score'] >= min_tech_score].copy()
 
+# ファンダメンタルスコア列を追加
+df_screening_display['Fundamental_Score'] = (
+    df_screening_display['Screening_Score'] - df_screening_display['Technical_Score']
+)
+
 if selected_industries:
     df_screening_display = df_screening_display[
         df_screening_display['Industry'].isin(selected_industries)
@@ -286,7 +291,7 @@ def create_summary_data(df_screening_disp, df_industry_disp):
 
 df_summary = create_summary_data(df_screening_display, df_industry_display)
 
-# タブ作成 ── チェック② を追加
+# タブ作成
 tab0, tab0b, tab1, tab2, tab3 = st.tabs([
     "✅ チェック",
     "✅ チェック②",
@@ -380,13 +385,35 @@ def get_colored_symbols_html(industry, score, df_screening_disp):
     return display_html, copy_text
 
 
+def get_colored_symbols_html_with_fs(industry, ts, fs, df_screening_disp):
+    """業種・TS・FSに該当する銘柄を色付きHTMLで返す"""
+    stocks = df_screening_disp[
+        (df_screening_disp['Industry'] == industry) &
+        (df_screening_disp['Technical_Score'] == ts) &
+        (df_screening_disp['Fundamental_Score'] == fs)
+    ].sort_values('Buy_Pressure', ascending=False)
+
+    if len(stocks) == 0:
+        return '', ''
+
+    colored_spans = []
+    plain_symbols = []
+    for _, stock in stocks.iterrows():
+        symbol = html.escape(str(stock['Symbol']))
+        bp = stock['Buy_Pressure']
+        color = get_color_from_buy_pressure(bp)
+        colored_spans.append(f'<span style="color:{color}; font-weight:bold;">{symbol}</span>')
+        plain_symbols.append(symbol)
+
+    display_html = ', '.join(colored_spans)
+    copy_text = ', '.join(plain_symbols)
+    return display_html, copy_text
+
+
 # ============================================================
-# チェックタブ用 HTML 生成関数（共通化）
+# チェックタブ用 HTML 生成関数（タブ0 用：従来版）
 # ============================================================
 def render_check_tab(df_check, df_screening_disp, table_id_suffix=""):
-    """チェックタブの HTML テーブルを生成して表示する。
-    table_id_suffix: 同一ページに複数配置する場合に ID 重複を避けるサフィックス
-    """
     st.header("Buy Pressure")
 
     max_symbols_per_row = []
@@ -483,18 +510,173 @@ def render_check_tab(df_check, df_screening_disp, table_id_suffix=""):
 
 
 # ============================================================
-# タブ0: チェック
+# チェック②タブ用 HTML 生成関数（TS × FS 細分化版）
+# ============================================================
+def render_check_tab_with_fs(df_check, df_screening_disp):
+    """チェック②: TS 列の中をさらに FS（Fundamental Score）で細分化して表示"""
+    st.header("Buy Pressure（TS × FS 細分化）")
+
+    # TS ごとに存在する FS 値を降順で取得
+    ts_values = sorted(df_screening_disp['Technical_Score'].unique(), reverse=True)
+    ts_fs_map = {}  # {ts: [fs_desc, ...]}
+    for ts in ts_values:
+        fs_vals = sorted(
+            df_screening_disp[df_screening_disp['Technical_Score'] == ts]['Fundamental_Score'].unique(),
+            reverse=True
+        )
+        ts_fs_map[ts] = [int(f) for f in fs_vals]
+
+    # 全サブカラム数（TS×FS の組み合わせ数）
+    all_sub_cols = []  # [(ts, fs), ...]
+    for ts in ts_values:
+        for fs in ts_fs_map[ts]:
+            all_sub_cols.append((ts, fs))
+
+    # 行ごとの最大シンボル数（高さ計算用）
+    max_symbols_per_row = []
+    for _, row in df_check.iterrows():
+        row_max = 0
+        for ts, fs in all_sub_cols:
+            count = len(df_screening_disp[
+                (df_screening_disp['Industry'] == row['業種']) &
+                (df_screening_disp['Technical_Score'] == ts) &
+                (df_screening_disp['Fundamental_Score'] == fs)
+            ])
+            row_max = max(row_max, count)
+        max_symbols_per_row.append(row_max)
+
+    tid = "check-table-fs"
+    toast_id = "copy-toast-fs"
+    func_name = "copySymbolsFS"
+
+    # --- ヘッダー色: TS 値で背景色を変える ---
+    ts_header_colors = {
+        14: "#1b3a1b",
+        13: "#2a4a1b",
+        12: "#3a3a1b",
+        11: "#4a3a1b",
+        10: "#3a2a1b",
+    }
+
+    table_html = f"""
+    <style>
+    #{tid} {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
+    #{tid} th {{ background-color: #262730; color: #fafafa; padding: 6px 8px;
+                 text-align: center; border: 1px solid #444; white-space: nowrap; }}
+    #{tid} td {{ padding: 6px 8px; border: 1px solid #444;
+                 background-color: #0e1117; color: #fafafa; }}
+    #{tid} tr:hover td {{ background-color: #1a1d24; }}
+    .copyable-fs {{ cursor: pointer; position: relative; }}
+    .copyable-fs:hover {{ background-color: #2a2d34 !important; }}
+    #{toast_id} {{ position: fixed; top: 20px; right: 20px; background-color: #00c853;
+                   color: white; padding: 10px 20px; border-radius: 8px; font-size: 14px;
+                   font-weight: bold; z-index: 9999; opacity: 0; transition: opacity 0.3s;
+                   pointer-events: none; }}
+    #{toast_id}.show {{ opacity: 1; }}
+    </style>
+    <div id="{toast_id}" class="copy-toast">📋 Copied!</div>
+    <div style="overflow-x: auto;">
+    <table id="{tid}">
+    <thead>
+    """
+
+    # --- 上段ヘッダー: 固定列 + TS グループ（colspan） ---
+    fixed_cols = 4  # 業種, RS Rating, BP, ステータス
+    table_html += "<tr>"
+    table_html += f'<th rowspan="2">業種</th>'
+    table_html += f'<th rowspan="2">RS Rating</th>'
+    table_html += f'<th rowspan="2">Buy Pressure</th>'
+    table_html += f'<th rowspan="2">ステータス</th>'
+    for ts in ts_values:
+        colspan = len(ts_fs_map[ts])
+        bg = ts_header_colors.get(ts, "#262730")
+        table_html += f'<th colspan="{colspan}" style="background-color:{bg};">TS {ts}</th>'
+    table_html += "</tr>"
+
+    # --- 下段ヘッダー: FS 値 ---
+    table_html += "<tr>"
+    for ts in ts_values:
+        bg = ts_header_colors.get(ts, "#262730")
+        for fs in ts_fs_map[ts]:
+            table_html += f'<th style="background-color:{bg}; font-size:11px;">FS {fs}</th>'
+    table_html += "</tr>"
+    table_html += "</thead><tbody>"
+
+    # --- データ行 ---
+    for idx, row in df_check.iterrows():
+        bp = row['Buy Pressure']
+        bp_color = get_color_from_buy_pressure(bp)
+        industry_name = str(row['業種'])
+        industry_esc = html.escape(industry_name)
+        rs = f"{row['RS Rating']:.1f}"
+        bp_val = f"{bp:.3f}"
+        status_raw = str(row['ステータス'])
+        status_display = re.sub(r'^\d+[a-z]?\s+', '', status_raw)
+        status = html.escape(status_display)
+
+        table_html += "<tr>"
+        table_html += f"<td>{industry_esc}</td>"
+        table_html += f"<td>{rs}</td>"
+        table_html += f'<td style="color: {bp_color}; font-weight: bold;">{bp_val}</td>'
+        table_html += f"<td>{status}</td>"
+
+        for ts, fs in all_sub_cols:
+            display_html, copy_text = get_colored_symbols_html_with_fs(
+                industry_name, ts, fs, df_screening_disp
+            )
+            if display_html:
+                escaped_copy = html.escape(copy_text).replace("'", "\\'")
+                table_html += (
+                    f'<td class="copyable-fs" '
+                    f'onclick="{func_name}(this, \'{escaped_copy}\')" '
+                    f'title="クリックでコピー">{display_html}</td>'
+                )
+            else:
+                table_html += "<td></td>"
+
+        table_html += "</tr>"
+
+    table_html += f"""
+    </tbody></table></div>
+    <script>
+    function {func_name}(el, text) {{
+        navigator.clipboard.writeText(text).then(function() {{
+            var toast = document.getElementById('{toast_id}');
+            toast.classList.add('show');
+            el.style.backgroundColor = '#1b5e20';
+            setTimeout(function() {{ toast.classList.remove('show'); el.style.backgroundColor = ''; }}, 1500);
+        }});
+    }}
+    </script>
+    """
+
+    total_height = 100  # ヘッダー 2 段分
+    for sym_count in max_symbols_per_row:
+        if sym_count <= 3:
+            total_height += 40
+        elif sym_count <= 6:
+            total_height += 55
+        elif sym_count <= 10:
+            total_height += 75
+        else:
+            total_height += 95
+
+    st.components.v1.html(table_html, height=total_height, scrolling=False)
+
+
+# ============================================================
+# タブ0: チェック（従来版）
 # ============================================================
 with tab0:
     df_check = df_summary[['業種', 'RS Rating', 'Buy Pressure', 'ステータス']].copy()
     render_check_tab(df_check, df_screening_display, table_id_suffix="")
 
 # ============================================================
-# タブ0b: チェック②
+# タブ0b: チェック②（TS × FS 細分化版）
 # ============================================================
 with tab0b:
     df_check2 = df_summary[['業種', 'RS Rating', 'Buy Pressure', 'ステータス']].copy()
-    render_check_tab(df_check2, df_screening_display, table_id_suffix="-2")
+    render_check_tab_with_fs(df_check2, df_screening_display)
 
 
 # ============================================================
