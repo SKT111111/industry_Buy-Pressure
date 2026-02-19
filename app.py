@@ -330,7 +330,6 @@ def get_colored_symbols_html_with_fs(industry, ts, fs, df_screening_disp):
         symbol = html.escape(str(stock['Symbol']))
         bp = stock['Buy_Pressure']
         color = get_color_from_buy_pressure(bp)
-        # data-symbol 属性を各 span に付与（検索用）
         colored_spans.append(
             f'<span data-symbol="{symbol}" style="color:{color}; font-weight:bold;">{symbol}</span>'
         )
@@ -617,11 +616,11 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
 
     # 検索バー
     table_html += """
-    <div class="search-bar">
-        <input type="text" id="symbol-search" placeholder="🔍 銘柄シンボルを入力 (例: AAPL)" 
+    <div class="search-bar" id="search-bar-area">
+        <input type="text" id="symbol-search" placeholder="🔍 銘柄シンボルを入力 (例: AAPL)"
                onkeydown="if(event.key==='Enter') searchSymbol();" />
         <button onclick="searchSymbol()">検索</button>
-        <button class="clear-btn" onclick="clearSearch()">クリア</button>
+        <button class="clear-btn" onclick="clearSearchAndInput()">クリア</button>
         <span id="search-result" class="result-text"></span>
     </div>
     """
@@ -695,21 +694,25 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
         }});
     }}
 
-    function clearSearch() {{
-        // 入力をクリア
-        document.getElementById('symbol-search').value = '';
-        document.getElementById('search-result').textContent = '';
-        // ハイライトを全解除
+    /* ハイライトだけ消す（入力欄はそのまま） */
+    function clearHighlights() {{
         var table = document.getElementById('{tid}');
+        if (!table) return;
         var hitCells = table.querySelectorAll('td.search-hit');
         hitCells.forEach(function(td) {{
             td.classList.remove('search-hit');
-            // search-match クラスを外して元に戻す
             var matchSpans = td.querySelectorAll('.search-match');
             matchSpans.forEach(function(sp) {{
                 sp.classList.remove('search-match');
             }});
         }});
+        document.getElementById('search-result').textContent = '';
+    }}
+
+    /* クリアボタン用: 入力もハイライトも全部消す */
+    function clearSearchAndInput() {{
+        document.getElementById('symbol-search').value = '';
+        clearHighlights();
     }}
 
     function searchSymbol() {{
@@ -718,8 +721,7 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
         var table = document.getElementById('{tid}');
         var wrapper = document.getElementById('fs-scroll-wrapper');
 
-        // 前回のハイライトをクリア
-        clearSearch();
+        clearHighlights();
         document.getElementById('symbol-search').value = query;
 
         if (!query) {{
@@ -727,13 +729,11 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
             return;
         }}
 
-        // 複数キーワード対応（カンマ or スペース区切り）
         var keywords = query.split(/[,\\s]+/).filter(function(k) {{ return k.length > 0; }});
 
         var hitCount = 0;
         var firstHit = null;
 
-        // data-symbol 属性を持つ全 span を走査
         var allSpans = table.querySelectorAll('td.data-cell span[data-symbol]');
         allSpans.forEach(function(span) {{
             var sym = span.getAttribute('data-symbol').toUpperCase();
@@ -758,7 +758,6 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
         if (hitCount > 0) {{
             resultEl.textContent = '✅ ' + hitCount + ' 件ヒット';
             resultEl.style.color = '#00c853';
-            // 最初のヒットセルまでスクロール
             if (firstHit && wrapper) {{
                 var wrapperRect = wrapper.getBoundingClientRect();
                 var cellRect = firstHit.getBoundingClientRect();
@@ -773,6 +772,21 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
             resultEl.style.color = '#ff5252';
         }}
     }}
+
+    /* ---- 表・検索バーの外をクリックしたらハイライト解除 ---- */
+    document.addEventListener('click', function(e) {{
+        var table = document.getElementById('{tid}');
+        var searchBar = document.getElementById('search-bar-area');
+        var toast = document.getElementById('{toast_id}');
+
+        /* クリック先がテーブル内 or 検索バー内 or トーストなら何もしない */
+        if (table && table.contains(e.target)) return;
+        if (searchBar && searchBar.contains(e.target)) return;
+        if (toast && toast.contains(e.target)) return;
+
+        /* それ以外（余白など）をクリック → ハイライト解除＋入力クリア */
+        clearSearchAndInput();
+    }});
     </script>
     """
 
