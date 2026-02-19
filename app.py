@@ -21,7 +21,6 @@ st.title("🔥 Industry Buy Pressure Dashboard")
 st.markdown("---")
 
 
-# Buy Pressure に応じた色を返す関数（緑→黄→赤のグラデーション）
 def get_color_from_buy_pressure(buy_pressure):
     if pd.isna(buy_pressure):
         return "#808080"
@@ -429,7 +428,7 @@ def render_check_tab(df_check, df_screening_disp, table_id_suffix=""):
 
 
 # ============================================================
-# チェック②タブ用（TS × FS 細分化 ＋ 縦横スクロール対応）
+# チェック②タブ用（TS × FS 細分化 ＋ 縦横スクロール・広々表示）
 # ============================================================
 def render_check_tab_with_fs(df_check, df_screening_disp):
     st.header("Buy Pressure（TS × FS 細分化）")
@@ -450,14 +449,13 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
 
     num_rows = len(df_check)
 
-    # --- 固定列の left 位置を計算 ---
-    col_widths = [180, 80, 100, 120]  # 業種, RS, BP, ステータス
+    # 固定列の幅と left 位置
+    col_widths = [200, 85, 110, 130]
     left_positions = []
     cumulative = 0
     for w in col_widths:
         left_positions.append(cumulative)
         cumulative += w
-    fixed_total_width = cumulative  # 固定列の合計幅
 
     tid = "check-table-fs"
     toast_id = "copy-toast-fs"
@@ -471,14 +469,21 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
         10: "#3a2a1b",
     }
 
-    # --- CSS ---
+    # 上段ヘッダーの高さ（sticky の top 計算用）
+    header_row_h = 38
+
     style_css = f"""
     <style>
+    html, body {{
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+    }}
     .fs-scroll-wrapper {{
         overflow: auto;
-        max-height: 80vh;
+        height: calc(100vh - 8px);
         border: 1px solid #444;
-        position: relative;
     }}
     #{tid} {{
         border-collapse: separate;
@@ -487,42 +492,44 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
         width: max-content;
     }}
     #{tid} th, #{tid} td {{
-        padding: 6px 8px;
+        padding: 8px 12px;
         border: 1px solid #444;
         background-color: #0e1117;
         color: #fafafa;
         white-space: nowrap;
+        line-height: 1.6;
     }}
+    /* ヘッダー共通 */
     #{tid} thead th {{
         position: sticky;
-        top: 0;
         z-index: 3;
         background-color: #262730;
     }}
-    /* 上段ヘッダー (row1) */
     #{tid} thead tr:first-child th {{
         top: 0;
     }}
-    /* 下段ヘッダー (row2) */
     #{tid} thead tr:nth-child(2) th {{
-        top: 33px;
+        top: {header_row_h}px;
     }}
-    /* 固定列 (左4列) の共通スタイル */
+    /* 固定列 */
     #{tid} .sticky-col {{
         position: sticky;
         z-index: 2;
         background-color: #0e1117;
     }}
-    /* ヘッダー内の固定列は z-index を最大に */
     #{tid} thead .sticky-col {{
         z-index: 5;
         background-color: #262730;
     }}
     #{tid} .sticky-col-0 {{ left: {left_positions[0]}px; min-width: {col_widths[0]}px; max-width: {col_widths[0]}px; }}
-    #{tid} .sticky-col-1 {{ left: {left_positions[1]}px; min-width: {col_widths[1]}px; max-width: {col_widths[1]}px; }}
-    #{tid} .sticky-col-2 {{ left: {left_positions[2]}px; min-width: {col_widths[2]}px; max-width: {col_widths[2]}px; }}
+    #{tid} .sticky-col-1 {{ left: {left_positions[1]}px; min-width: {col_widths[1]}px; max-width: {col_widths[1]}px; text-align: right; }}
+    #{tid} .sticky-col-2 {{ left: {left_positions[2]}px; min-width: {col_widths[2]}px; max-width: {col_widths[2]}px; text-align: right; }}
     #{tid} .sticky-col-3 {{ left: {left_positions[3]}px; min-width: {col_widths[3]}px; max-width: {col_widths[3]}px;
                             border-right: 3px solid #888; }}
+    /* データ列 */
+    #{tid} td.data-cell {{
+        min-width: 100px;
+    }}
     /* hover */
     #{tid} tbody tr:hover td {{ background-color: #1a1d24; }}
     #{tid} tbody tr:hover .sticky-col {{ background-color: #1a1d24; }}
@@ -537,31 +544,28 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
     </style>
     """
 
-    # --- HTML 組み立て ---
     table_html = style_css
     table_html += f'<div id="{toast_id}" class="copy-toast">📋 Copied!</div>'
-    table_html += f'<div class="fs-scroll-wrapper">'
+    table_html += '<div class="fs-scroll-wrapper">'
     table_html += f'<table id="{tid}">'
 
     # ===== THEAD =====
     table_html += "<thead>"
-
-    # -- 上段ヘッダー --
+    # 上段
     table_html += "<tr>"
     for i, label in enumerate(["業種", "RS Rating", "Buy Pressure", "ステータス"]):
         table_html += f'<th rowspan="2" class="sticky-col sticky-col-{i}">{label}</th>'
     for ts in ts_values:
         colspan = len(ts_fs_map[ts])
         bg = ts_header_colors.get(ts, "#262730")
-        table_html += f'<th colspan="{colspan}" style="background-color:{bg}; text-align:center;">TS {ts}</th>'
+        table_html += f'<th colspan="{colspan}" style="background-color:{bg}; text-align:center; font-size:14px;">TS {ts}</th>'
     table_html += "</tr>"
-
-    # -- 下段ヘッダー --
+    # 下段
     table_html += "<tr>"
     for ts in ts_values:
         bg = ts_header_colors.get(ts, "#262730")
         for fs in ts_fs_map[ts]:
-            table_html += f'<th style="background-color:{bg}; font-size:11px; text-align:center;">FS {fs}</th>'
+            table_html += f'<th style="background-color:{bg}; font-size:12px; text-align:center;">FS {fs}</th>'
     table_html += "</tr>"
     table_html += "</thead>"
 
@@ -591,17 +595,16 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
             if display_html:
                 escaped_copy = html.escape(copy_text).replace("'", "\\'")
                 table_html += (
-                    f'<td class="copyable-fs" '
+                    f'<td class="data-cell copyable-fs" '
                     f'onclick="{func_name}(this, \'{escaped_copy}\')" '
                     f'title="クリックでコピー">{display_html}</td>'
                 )
             else:
-                table_html += "<td></td>"
+                table_html += '<td class="data-cell"></td>'
         table_html += "</tr>"
 
     table_html += "</tbody></table></div>"
 
-    # --- JS ---
     table_html += f"""
     <script>
     function {func_name}(el, text) {{
@@ -615,12 +618,13 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
     </script>
     """
 
-    # iframe の高さ: 行数に応じて計算しつつ上限を設定
-    row_height = 38
-    header_height = 80
-    padding = 40
+    # iframe 高さ: 行数×行高さで計算し、上限を大きく確保
+    row_height = 42
+    header_height = 90
+    padding = 20
     calculated = header_height + num_rows * row_height + padding
-    iframe_height = min(calculated, 820)
+    # 上限を 2000px に拡大（それ以上はスクロール内で対応）
+    iframe_height = min(calculated, 2000)
 
     st.components.v1.html(table_html, height=iframe_height, scrolling=True)
 
