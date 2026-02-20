@@ -829,14 +829,14 @@ with tab3:
 
     st.subheader("RS Rating vs Buy Pressure")
 
-    # ステータス色マップ: BUY=濃い青, STRONG=薄い青, EXTREME=淡い赤
+    # ステータス色マップ: BUY=濃い青, STRONG=薄い青, EXTREME=濃い赤オレンジ
     STATUS_COLOR_MAP = {
         '0a 💀 WEAK':      '#636EFA',
         '0b ⚠️ CAUTION':   '#EF553B',
         '0c ➖ NEUTRAL':    '#00CC96',
         '1 📈 BUY':        '#1a3ab5',
         '2 🚀 STRONG':     '#6fa8dc',
-        '3 🔥 EXTREME':    '#e57373',
+        '3 🔥 EXTREME':    '#d84315',
     }
 
     STATUS_ORDER = [
