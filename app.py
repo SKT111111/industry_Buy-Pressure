@@ -829,20 +829,31 @@ with tab3:
 
     st.subheader("RS Rating vs Buy Pressure")
 
-    # ステータスの凡例順序: EXTREME と STRONG の色を入れ替えるため順序を入れ替え
-    status_order = [
+    # 凡例順序: 1 BUY → 2 STRONG → 3 EXTREME の順に表示
+    # 色: EXTREME に旧STRONGの色(オレンジ)、STRONG に旧EXTREMEの色(水色)
+    STATUS_COLOR_MAP = {
+        '0a 💀 WEAK':      '#636EFA',
+        '0b ⚠️ CAUTION':   '#EF553B',
+        '0c ➖ NEUTRAL':    '#00CC96',
+        '1 📈 BUY':        '#AB63FA',
+        '2 🚀 STRONG':     '#19D3F3',
+        '3 🔥 EXTREME':    '#FFA15A',
+    }
+
+    STATUS_ORDER = [
         '0a 💀 WEAK',
         '0b ⚠️ CAUTION',
         '0c ➖ NEUTRAL',
         '1 📈 BUY',
-        '3 🔥 EXTREME',   # ← 旧5番目(STRONG)の位置に置く → 旧STRONGの色が付く
-        '2 🚀 STRONG',    # ← 旧6番目(EXTREME)の位置に置く → 旧EXTREMEの色が付く
+        '2 🚀 STRONG',
+        '3 🔥 EXTREME',
     ]
 
     fig = px.scatter(
         df_summary, x='RS Rating', y='Buy Pressure', size='銘柄数', color='ステータス',
         hover_data=['業種', '平均テクニカルスコア'], text='業種', title='業種別 RS Rating vs Buy Pressure',
-        category_orders={'ステータス': status_order},
+        color_discrete_map=STATUS_COLOR_MAP,
+        category_orders={'ステータス': STATUS_ORDER},
     )
     fig.update_traces(textposition='top center')
     fig.update_layout(height=700, yaxis=dict(range=[0.5, 1]))
