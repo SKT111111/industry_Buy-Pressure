@@ -457,7 +457,7 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
     for w in col_widths:
         left_positions.append(cumulative)
         cumulative += w
-    frozen_total_width = cumulative  # 固定列の合計幅（px）
+    frozen_total_width = cumulative
 
     tid = "check-table-fs"
     toast_id = "copy-toast-fs"
@@ -676,7 +676,6 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
 
     table_html += "</tbody></table></div>"
 
-    # ---- JavaScript（スクロール修正版） ----
     table_html += f"""
     <script>
     var FROZEN_WIDTH = {frozen_total_width};
@@ -715,15 +714,10 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
 
         var wrapperRect = wrapper.getBoundingClientRect();
 
-        /* ---------- 横スクロール ---------- */
-        /* セルの、テーブル先頭からの絶対 left を求める */
         var cellOffsetLeft = cell.offsetLeft;
-        /* 固定列の右端より左にセルが来ないようにする */
-        /* 目標: セルの左端が固定列の右端 + 余白20px の位置に見える */
         var targetScrollLeft = cellOffsetLeft - FROZEN_WIDTH - 20;
         if (targetScrollLeft < 0) targetScrollLeft = 0;
 
-        /* ---------- 縦スクロール ---------- */
         var cellRect = cell.getBoundingClientRect();
         var headerHeight = 80;
         var targetScrollTop = wrapper.scrollTop + (cellRect.top - wrapperRect.top) - headerHeight;
@@ -836,7 +830,15 @@ with tab3:
     st.subheader("RS Rating vs Buy Pressure")
     fig = px.scatter(
         df_summary, x='RS Rating', y='Buy Pressure', size='銘柄数', color='ステータス',
-        hover_data=['業種', '平均テクニカルスコア'], text='業種', title='業種別 RS Rating vs Buy Pressure'
+        hover_data=['業種', '平均テクニカルスコア'], text='業種', title='業種別 RS Rating vs Buy Pressure',
+        color_discrete_map={
+            '0a 💀 WEAK': '#636EFA',
+            '0b ⚠️ CAUTION': '#EF553B',
+            '0c ➖ NEUTRAL': '#00CC96',
+            '1 📈 BUY': '#AB63FA',
+            '2 🚀 STRONG': '#19D3F3',
+            '3 🔥 EXTREME': '#FFA15A',
+        }
     )
     fig.update_traces(textposition='top center')
     fig.update_layout(height=700, yaxis=dict(range=[0.5, 1]))
