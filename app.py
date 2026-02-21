@@ -436,13 +436,16 @@ def render_check_tab_with_fs(df_check, df_screening_disp):
     st.header("Buy Pressure（TS × FS 細分化）")
 
     ts_values = sorted(df_screening_disp['Technical_Score'].unique(), reverse=True)
+
+    # --- 修正: FS上限を10に固定 ---
+    global_max_fs = 10
+    global_min_fs = int(df_screening_disp['Fundamental_Score'].min())
+    fixed_fs_values = list(range(global_max_fs, global_min_fs - 1, -1))
+
     ts_fs_map = {}
     for ts in ts_values:
-        fs_vals = sorted(
-            df_screening_disp[df_screening_disp['Technical_Score'] == ts]['Fundamental_Score'].unique(),
-            reverse=True
-        )
-        ts_fs_map[ts] = [int(f) for f in fs_vals]
+        ts_fs_map[ts] = fixed_fs_values
+    # --- 修正ここまで ---
 
     all_sub_cols = []
     for ts in ts_values:
@@ -829,7 +832,6 @@ with tab3:
 
     st.subheader("RS Rating vs Buy Pressure")
 
-    # ステータス色マップ: BUY=濃い青, STRONG=薄い青, EXTREME=濃い赤オレンジ
     STATUS_COLOR_MAP = {
         '0a 💀 WEAK':      '#636EFA',
         '0b ⚠️ CAUTION':   '#EF553B',
