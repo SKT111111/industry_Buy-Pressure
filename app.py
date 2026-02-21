@@ -253,9 +253,25 @@ def style_symbol(row):
         bp = float(row['Buy Pressure'])
         color = get_color_from_buy_pressure(bp)
         symbol_idx = row.index.get_loc('Symbol')
-        styles[symbol_idx] = f'color: {color}; font-weight: bold; font-size: 16px;'
+        styles[symbol_idx] = f'background-color: #000000; color: {color}; font-weight: bold; font-size: 16px;'
         bp_idx = row.index.get_loc('Buy Pressure')
-        styles[bp_idx] = f'color: {color}; font-weight: bold;'
+        styles[bp_idx] = f'background-color: #000000; color: {color}; font-weight: bold;'
+    except (ValueError, TypeError, KeyError):
+        pass
+    return styles
+
+
+def style_symbol_black_bg(row):
+    """全セルの背景を黒にし、Symbol と Buy Pressure は BP カラーで着色"""
+    base = 'background-color: #000000; color: #fafafa;'
+    styles = [base] * len(row)
+    try:
+        bp = float(row['Buy Pressure'])
+        color = get_color_from_buy_pressure(bp)
+        symbol_idx = row.index.get_loc('Symbol')
+        styles[symbol_idx] = f'background-color: #000000; color: {color}; font-weight: bold; font-size: 16px;'
+        bp_idx = row.index.get_loc('Buy Pressure')
+        styles[bp_idx] = f'background-color: #000000; color: {color}; font-weight: bold;'
     except (ValueError, TypeError, KeyError):
         pass
     return styles
@@ -293,7 +309,7 @@ def create_industry_table(df_screening_disp, df_industry_disp, sort_by='Technica
         display_df['Company Name'] = display_df['Company Name'].apply(
             lambda x: str(x)[:40] if pd.notna(x) else ''
         )
-        styled_df = display_df.style.apply(style_symbol, axis=1)
+        styled_df = display_df.style.apply(style_symbol_black_bg, axis=1)
         st.dataframe(styled_df, use_container_width=True, height=min(len(display_df) * 40 + 50, 650))
         st.markdown("---")
 
